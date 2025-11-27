@@ -1,14 +1,14 @@
+
 import { GameState } from "../../types";
 import { INVESTIGATION_INSTRUCTION, DEBUG_INSTRUCTION } from "../ai/prompts";
-import { getAiClient, SYSTEM_MODEL } from "../ai/client";
+import { generateContentWithRetry, SYSTEM_MODEL } from "../ai/client";
 import { getSimulationHistory } from "../../utils/contextBuilder";
 
 export const investigateScene = async (
   query: string,
   currentState: GameState
 ): Promise<string> => {
-  const ai = getAiClient();
-
+  
   const context = `
   Local: ${currentState.player.location}
   Tempo: ${currentState.world.time}
@@ -28,8 +28,7 @@ export const investigateScene = async (
   4. Use linguagem natural de pensamento ("Parece...", "Sinto...", "Isso deve ser...").
   `;
 
-  const response = await ai.models.generateContent({
-    model: SYSTEM_MODEL,
+  const response = await generateContentWithRetry(SYSTEM_MODEL, {
     contents: context + "\n" + prompt,
     config: {
       systemInstruction: INVESTIGATION_INSTRUCTION,
@@ -41,9 +40,7 @@ export const investigateScene = async (
 };
 
 export const summarizeMemory = async (currentState: GameState): Promise<string> => {
-  const ai = getAiClient();
-  const response = await ai.models.generateContent({
-    model: SYSTEM_MODEL,
+  const response = await generateContentWithRetry(SYSTEM_MODEL, {
     contents: `Resuma eventos recentes (Local, Objetivos, Encontros): ${currentState.history.map(h=>h.text).join("\n")}`,
     config: { responseMimeType: "text/plain" }
   });
@@ -54,7 +51,7 @@ export const debugSimulation = async (
   query: string,
   currentState: GameState
 ): Promise<string> => {
-  const ai = getAiClient();
+  
   const context = `
   Player: ${JSON.stringify(currentState.player)}
   NPCs (Psyche Engine): ${JSON.stringify(currentState.world.npcs)}
@@ -63,8 +60,7 @@ export const debugSimulation = async (
 
   const prompt = `[DEBUG QUERY]: "${query}"\nExplique a lógica do sistema (Narrador ou NPCs) tecnicamente.`;
 
-  const response = await ai.models.generateContent({
-    model: SYSTEM_MODEL,
+  const response = await generateContentWithRetry(SYSTEM_MODEL, {
     contents: context + "\n" + prompt,
     config: {
       systemInstruction: DEBUG_INSTRUCTION,

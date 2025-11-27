@@ -1,37 +1,64 @@
+
 import { GameState, NarrativeResponse, SimulationResponse } from "../../types";
 import { NarrativeSchema, InitSchema } from "../ai/schemas";
 import { NARRATOR_INSTRUCTION } from "../ai/prompts";
-import { getAiClient, NARRATOR_MODEL } from "../ai/client";
+import { generateContentWithRetry, NARRATOR_MODEL, parseAIResponse } from "../ai/client";
 import { getSimulationHistory, getKnowledgeContext } from "../../utils/contextBuilder";
+import { retrieveContext } from "../ragService";
 
-export const resolveNarrative = async (action: string, currentState: GameState): Promise<NarrativeResponse> => {
-  const ai = getAiClient();
+// The Narrator is now the FIRST step (The Leader).
+// It decides the outcome and writes the story immediately.
+export const synthesizeNarrative = async (
+  action: string,
+  currentState: GameState
+): Promise<NarrativeResponse> => {
   
+  // 1. RAG RETRIEVAL (Tenta buscar memórias no servidor Python)
+  // Buscamos baseados na ação E na localização atual para contexto
+  const ragQuery = `Action: ${action} | Location: ${currentState.player.location}`;
+  const longTermMemories = await retrieveContext(ragQuery);
+  
+  const formattedMemories = longTermMemories.length > 0 
+    ? `[MEMÓRIAS DE LONGO PRAZO RECUPERADAS (RAG)]:\n${longTermMemories.map(m => `- ${m}`).join('\n')}`
+    : "";
+
+  // 2. Filtra NPCs locais
+  const presentNPCs = currentState.world.npcs
+    .filter(npc => npc.location === currentState.player.location)
+    .map(npc => `- ${npc.isNameKnown ? npc.name : npc.descriptor} (Ação: ${npc.action}, Status: ${npc.status})`)
+    .join("\n");
+
   const context = `
-  [CONTEXTO DO JOGO]:
-  Tempo: ${currentState.world.time}
-  Local: ${currentState.player.location}
-  Status Jogador: ${currentState.player.status}
-  Inventário: ${currentState.player.inventory.join(", ")}
-  NPCs Presentes (Estado Anterior): ${currentState.world.npcs.map(n => `${n.isNameKnown ? n.name : n.descriptor} (${n.location})`).join(", ")}
-  
   [HISTÓRICO RECENTE]:
   ${getSimulationHistory(currentState.history)}
 
+  ${formattedMemories}
+
+  [CONTEXTO DE CONHECIMENTO (Códex)]:
   ${getKnowledgeContext(currentState.knowledgeBase)}
+  
+  [ESTADO ATUAL DO JOGADOR]:
+  Local: ${currentState.player.location}
+  Status: ${currentState.player.status}
+  Inventário: ${currentState.player.inventory.join(", ")}
+  Tempo: ${currentState.world.time}
+
+  [PESSOAS PRESENTES NESTE LOCAL (${currentState.player.location})]:
+  ${presentNPCs || "Ninguém visível."}
   `;
 
   const prompt = `
   AÇÃO DO JOGADOR: "${action}"
-  
-  Tarefa:
-  1. Resolva a ação física.
-  2. Atualize o tempo e clima.
-  3. Descreva a nova cena.
+
+  TAREFA DE ESCRITA:
+  1. Atue como Mestre de Jogo. Decida o resultado lógico da ação (Sucesso/Falha) baseado no contexto e nas MEMÓRIAS recuperadas.
+  2. Interaja com as [PESSOAS PRESENTES] se fizer sentido.
+  3. Escreva a resposta narrativa em 2ª pessoa ("Você...").
+  4. Seja sensorial e imersivo.
+  5. Identifique se houve atualização de conhecimento (novos NPCs, Locais, Quests) no campo knowledgeUpdate.
   `;
 
-  const response = await ai.models.generateContent({
-    model: NARRATOR_MODEL,
+  const response = await generateContentWithRetry(NARRATOR_MODEL, {
     contents: context + "\n" + prompt,
     config: {
       systemInstruction: NARRATOR_INSTRUCTION,
@@ -40,32 +67,30 @@ export const resolveNarrative = async (action: string, currentState: GameState):
     }
   });
 
-  if (!response.text) throw new Error("Narrator agent failed.");
-  return JSON.parse(response.text) as NarrativeResponse;
+  return parseAIResponse<NarrativeResponse>(response.text);
 };
 
 export const initializeGameSession = async (characterName: string, setting: string): Promise<SimulationResponse> => {
-  const ai = getAiClient();
-  
   const prompt = `
   INICIAR SIMULAÇÃO.
   Sujeito: ${characterName}
   Contexto: ${setting}
   
-  Gere a cena inicial e popule o mundo com NPCs iniciais se apropriado.
-  Para os NPCs, crie nomes (name), mas também descrições visuais (descriptor). Defina isNameKnown como FALSE a menos que o sujeito já os conheça na backstory.
+  Gere:
+  1. Uma DATA e HORA inicial (initialTime) compatível com o cenário (Futuro, Passado, etc) no formato "DD/MM/YYYY HH:MM".
+  2. A narrativa inicial (narrative).
+  3. O estado inicial do mundo (worldUpdate).
+  4. Os NPCs iniciais (npcSimulation) - Crie pelo menos 2 NPCs relevantes para a cena inicial.
   `;
 
-  const response = await ai.models.generateContent({
-    model: NARRATOR_MODEL,
+  const response = await generateContentWithRetry(NARRATOR_MODEL, {
     contents: prompt,
     config: {
-      systemInstruction: NARRATOR_INSTRUCTION + "\nTambém gere os NPCs iniciais e seus estados seguindo a regra de anonimato.",
+      systemInstruction: NARRATOR_INSTRUCTION + "\nVocê está criando o ESTADO INICIAL do zero. Defina o cenário e a DATA.",
       responseMimeType: "application/json",
       responseSchema: InitSchema,
     }
-  });
+  }, 6, 3000);
 
-  if (!response.text) throw new Error("Init failed");
-  return JSON.parse(response.text) as SimulationResponse;
+  return parseAIResponse<SimulationResponse>(response.text);
 };

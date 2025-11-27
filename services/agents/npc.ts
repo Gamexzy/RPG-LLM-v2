@@ -1,43 +1,45 @@
-import { GameState, NPCBehaviorResponse } from "../../types";
+
+import { GameState, NPCBehaviorResponse, NPCEntity } from "../../types";
 import { NPCBehaviorSchema } from "../ai/schemas";
 import { NPC_ENGINE_INSTRUCTION } from "../ai/prompts";
-import { getAiClient, NPC_MODEL } from "../ai/client";
+import { generateContentWithRetry, NPC_MODEL, parseAIResponse } from "../ai/client";
 
 export const runNPCBehaviorEngine = async (
   currentState: GameState,
-  playerAction: string
+  playerAction: string,
+  narrative: string
 ): Promise<NPCBehaviorResponse> => {
-  const ai = getAiClient();
+  
+  // Se não houver NPCs conhecidos, não gastamos tokens, mas retornamos vazio.
+  // Porem, queremos permitir que o Narrador crie NPCs e o World Engine os popule, 
+  // mas aqui estamos simulando os JÁ EXISTENTES. Novos NPCs entram via 'knowledgeUpdate' ou 'npcSimulation' inicial.
+  const existingNPCs = currentState.world.npcs || [];
+
+  if (existingNPCs.length === 0) {
+      return { npcs: [] };
+  }
 
   const context = `
-  [ESTADO DO MUNDO]:
-  Tempo: ${currentState.world.time}
-  Eventos Ativos: ${currentState.world.activeEvents.join(", ")}
-  Local do Jogador: ${currentState.player.location}
+  [HORÁRIO ATUAL]: ${currentState.world.time}
+  [LOCALIZAÇÃO DO JOGADOR]: ${currentState.player.location}
   
-  [AÇÃO IMEDIATA DO JOGADOR]: "${playerAction}"
-
-  [LISTA DE NPCS (ESTADO ANTERIOR)]:
-  ${JSON.stringify(currentState.world.npcs)}
+  [LISTA DE TODOS OS NPCS CONHECIDOS]:
+  ${JSON.stringify(existingNPCs)}
   `;
 
   const prompt = `
-  SIMULE A REAÇÃO DOS NPCS EM TEMPO REAL (PARALELO AO NARRADOR).
+  [AÇÃO DO JOGADOR]: "${playerAction}"
   
-  O Narrador está resolvendo a física da ação do jogador agora.
-  Sua tarefa é simular como os NPCs reagem à INTENÇÃO do jogador ou continuam suas vidas.
-  
-  Diretrizes:
-  1. Onde o jogador está? Quem está perto?
-  2. NPCs distantes seguem rotinas.
-  3. NPCs próximos reagem à ação "${playerAction}".
-  4. Mantenha a regra de 'isNameKnown': Se era false, continua false a menos que a ação do jogador seja explicitamente "Perguntar nome".
-  
-  Retorne a lista atualizada de NPCs.
+  [NARRATIVA RECENTE (Eventos Locais)]:
+  "${narrative}"
+
+  TAREFA:
+  1. Identifique quais NPCs da lista estão no local do jogador (${currentState.player.location}). Para estes, simule a REAÇÃO à narrativa.
+  2. Para os NPCs em OUTROS locais, simule a VIDA/ROTINA baseada no horário. Eles podem se mover para outros lugares.
+  3. Retorne a lista ATUALIZADA de todos os NPCs.
   `;
 
-  const response = await ai.models.generateContent({
-    model: NPC_MODEL,
+  const response = await generateContentWithRetry(NPC_MODEL, {
     contents: context + "\n" + prompt,
     config: {
       systemInstruction: NPC_ENGINE_INSTRUCTION,
@@ -46,6 +48,19 @@ export const runNPCBehaviorEngine = async (
     }
   });
 
-  if (!response.text) return { npcs: [] };
-  return JSON.parse(response.text) as NPCBehaviorResponse;
+  if (!response.text) return { npcs: existingNPCs };
+  
+  const parsed = parseAIResponse<NPCBehaviorResponse>(response.text);
+
+  // Merge de segurança: Se a IA esquecer de devolver algum NPC, mantemos o estado antigo dele.
+  // Isso evita que NPCs sumam se a IA alucinar uma lista menor.
+  const mergedNPCs = existingNPCs.map(oldNPC => {
+    const updatedNPC = parsed.npcs.find(n => n.id === oldNPC.id);
+    return updatedNPC || oldNPC;
+  });
+
+  // Se a IA criou novos NPCs nesta etapa (raro, mas possível), adicionamos.
+  const newNPCs = parsed.npcs.filter(n => !existingNPCs.find(e => e.id === n.id));
+
+  return { npcs: [...mergedNPCs, ...newNPCs] };
 };

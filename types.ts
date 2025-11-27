@@ -1,3 +1,4 @@
+
 // --- Game State Types ---
 
 export interface KnowledgeEntry {
@@ -63,15 +64,28 @@ export interface ChatEntry {
 
 // --- AI Response Types ---
 
-// Response from the Narrator Agent
-export interface NarrativeResponse {
-  narrative: string;
-  playerStatusUpdate: string;
-  playerLocation: string;
-  timeUpdate: {
-    newTime: string;
+// 1. World Agent Response (Pure Logic)
+export interface WorldUpdate {
+  actionResult: string; // Logic description: "Player successfully picked lock"
+  playerStatus: string; // "Tired but unhurt"
+  newLocation: string; // "Kitchen"
+  timePassed: string; // "15 minutes"
+  currentWeather: string; // "Heavy Rain"
+  worldEvents: string[]; // ["Alarm sounding in distance"]
+  inventoryUpdates: {
+    added?: string[];
+    removed?: string[];
   };
-  worldEvents: string[];
+}
+
+// 2. NPC Agent Response (Pure Behavior)
+export interface NPCBehaviorResponse {
+  npcs: NPCEntity[];
+}
+
+// 3. Narrator Agent Response (Pure Text & Knowledge)
+export interface NarrativeResponse {
+  narrative: string; // The final prose
   knowledgeUpdate?: {
     characters?: KnowledgeEntry[];
     locations?: KnowledgeEntry[];
@@ -80,12 +94,11 @@ export interface NarrativeResponse {
   };
 }
 
-// Response from the NPC Psyche Agent
-export interface NPCBehaviorResponse {
-  npcs: NPCEntity[];
-}
-
 // Unified response for the frontend
 export interface SimulationResponse extends NarrativeResponse {
+  // We include the raw data from the World Agent so the UI handles updates
+  // while the Narrator handles the text.
+  worldUpdate: WorldUpdate;
   npcSimulation: NPCEntity[];
+  initialTime?: string; // Date string for initialization (DD/MM/YYYY HH:MM)
 }

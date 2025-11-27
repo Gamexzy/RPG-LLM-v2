@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { GameState } from '../../types';
 
@@ -6,6 +7,12 @@ interface StatusTabProps {
 }
 
 const StatusTab: React.FC<StatusTabProps> = ({ gameState }) => {
+  // Filter NPCs to show only those in the same location as the player
+  // This simulates the character's perception. Off-screen NPCs are simulated but not shown here.
+  const visibleNPCs = gameState.world.npcs.filter(
+    npc => npc.location === gameState.player.location
+  );
+
   return (
     <>
       {/* Proprioception (Health) */}
@@ -60,11 +67,11 @@ const StatusTab: React.FC<StatusTabProps> = ({ gameState }) => {
       </div>
 
       {/* NPC WorldSim Output */}
-      {gameState.world.npcs && gameState.world.npcs.length > 0 && (
+      {visibleNPCs.length > 0 ? (
         <div className="space-y-3 pt-4 border-t border-stone-900">
-          <h3 className="text-stone-600 font-bold uppercase tracking-widest text-[10px]">Psyche Engine (NPCs)</h3>
+          <h3 className="text-stone-600 font-bold uppercase tracking-widest text-[10px]">Presenças (Visíveis)</h3>
           <ul className="space-y-4">
-            {gameState.world.npcs.map((npc, i) => (
+            {visibleNPCs.map((npc, i) => (
               <li key={i} className="text-xs bg-stone-900/20 p-2 rounded border border-stone-900/50">
                 <div className="flex justify-between text-stone-400 mb-1">
                   {/* Identity Obfuscation Logic */}
@@ -90,6 +97,11 @@ const StatusTab: React.FC<StatusTabProps> = ({ gameState }) => {
             ))}
           </ul>
         </div>
+      ) : (
+         <div className="space-y-3 pt-4 border-t border-stone-900">
+             <h3 className="text-stone-600 font-bold uppercase tracking-widest text-[10px]">Presenças</h3>
+             <p className="text-stone-700 italic text-xs">Você está sozinho aqui.</p>
+         </div>
       )}
     </>
   );

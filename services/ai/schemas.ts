@@ -1,38 +1,82 @@
+
 import { Schema, Type } from "@google/genai";
 
+// --- AGENT 1: WORLD ENGINE SCHEMA ---
+export const WorldEngineSchema: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    actionResult: {
+      type: Type.STRING,
+      description: "Objective outcome of player action based on physics/logic. (e.g., 'Success: Door opened', 'Fail: Too heavy')."
+    },
+    playerStatus: {
+      type: Type.STRING,
+      description: "Current physical condition of player."
+    },
+    newLocation: {
+      type: Type.STRING,
+      description: "The location name after the action."
+    },
+    timePassed: {
+      type: Type.STRING,
+      description: "How much time passed during this action (e.g., '10 minutes')."
+    },
+    currentWeather: {
+      type: Type.STRING,
+      description: "Current weather or atmosphere."
+    },
+    worldEvents: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
+      description: "Ongoing background events unrelated to player."
+    },
+    inventoryUpdates: {
+      type: Type.OBJECT,
+      properties: {
+        added: { type: Type.ARRAY, items: { type: Type.STRING } },
+        removed: { type: Type.ARRAY, items: { type: Type.STRING } }
+      }
+    }
+  },
+  required: ["actionResult", "playerStatus", "newLocation", "timePassed", "currentWeather", "worldEvents"]
+};
+
+// --- AGENT 2: NPC ENGINE SCHEMA ---
+export const NPCBehaviorSchema: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    npcs: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          id: { type: Type.STRING },
+          name: { type: Type.STRING },
+          descriptor: { type: Type.STRING },
+          isNameKnown: { type: Type.BOOLEAN },
+          location: { type: Type.STRING },
+          action: { type: Type.STRING },
+          lastThought: { type: Type.STRING },
+          status: { type: Type.STRING }
+        },
+        required: ["id", "name", "descriptor", "isNameKnown", "location", "action", "lastThought", "status"]
+      }
+    }
+  },
+  required: ["npcs"]
+};
+
+// --- AGENT 3: NARRATOR SCHEMA (Funnel) ---
 export const NarrativeSchema: Schema = {
   type: Type.OBJECT,
   properties: {
     narrative: {
       type: Type.STRING,
-      description: "A direct, concise, and functional 2nd person narrative. Focus on describing the situation clearly, listing visible interactive objects, exits, or immediate threats."
-    },
-    playerStatusUpdate: {
-      type: Type.STRING,
-      description: "Short status description of the player's physical condition."
-    },
-    playerLocation: {
-      type: Type.STRING,
-      description: "The specific location of the player after the action."
-    },
-    timeUpdate: {
-      type: Type.OBJECT,
-      properties: {
-        newTime: {
-          type: Type.STRING,
-          description: "The current in-game date/time using a SIMPLE NUMERIC format."
-        }
-      },
-      required: ["newTime"]
-    },
-    worldEvents: {
-      type: Type.ARRAY,
-      items: { type: Type.STRING },
-      description: "List of active global events or weather."
+      description: "The final 2nd person story text combining World State and NPC Actions."
     },
     knowledgeUpdate: {
       type: Type.OBJECT,
-      description: "Updates to the persistent Codex. Only include NEW or UPDATED information.",
+      description: "Updates to Codex based on the narrative revealed.",
       properties: {
         characters: {
           type: Type.ARRAY,
@@ -76,38 +120,21 @@ export const NarrativeSchema: Schema = {
       }
     }
   },
-  required: ["narrative", "playerStatusUpdate", "playerLocation", "timeUpdate", "worldEvents"]
+  required: ["narrative"]
 };
 
-export const NPCBehaviorSchema: Schema = {
-  type: Type.OBJECT,
-  properties: {
-    npcs: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          id: { type: Type.STRING, description: "Unique ID of the NPC (internal)" },
-          name: { type: Type.STRING, description: "The true name of the NPC" },
-          descriptor: { type: Type.STRING, description: "How the player sees them (e.g., 'Tall Guard', 'Shadowy Figure')" },
-          isNameKnown: { type: Type.BOOLEAN, description: "True ONLY if the player explicitly knows their name." },
-          location: { type: Type.STRING, description: "Where they are now" },
-          action: { type: Type.STRING, description: "Visible action they are performing" },
-          lastThought: { type: Type.STRING, description: "Internal monologue explaining WHY they are doing this." },
-          status: { type: Type.STRING, description: "Physical state (Alert, Sleeping, Dead)" }
-        },
-        required: ["id", "name", "descriptor", "isNameKnown", "location", "action", "lastThought", "status"]
-      }
-    }
-  },
-  required: ["npcs"]
-};
-
+// --- INIT SCHEMA (Used for bootstrapping) ---
+// Combines everything for the very first turn to simplify setup
 export const InitSchema: Schema = {
-    type: NarrativeSchema.type,
+    type: Type.OBJECT,
     properties: {
-        ...NarrativeSchema.properties,
+        initialTime: { 
+            type: Type.STRING, 
+            description: "The starting date and time in strict format 'DD/MM/YYYY HH:MM' appropriate for the setting." 
+        },
+        narrative: NarrativeSchema.properties?.narrative,
+        worldUpdate: WorldEngineSchema,
         npcSimulation: NPCBehaviorSchema.properties?.npcs
     },
-    required: [...(NarrativeSchema.required || []), "npcSimulation"]
+    required: ["initialTime", "narrative", "worldUpdate", "npcSimulation"]
 };

@@ -1,32 +1,37 @@
-import { GameState, SimulationResponse } from "../types";
-import { resolveNarrative, initializeGameSession } from "./agents/narrator";
+
+import { GameState, SimulationResponse, NarrativeResponse, WorldUpdate, NPCBehaviorResponse } from "../types";
+import { synthesizeNarrative, initializeGameSession } from "./agents/narrator";
 import { runNPCBehaviorEngine } from "./agents/npc";
+import { runWorldSimulation } from "./agents/world";
 import { investigateScene, summarizeMemory, debugSimulation } from "./agents/system";
 
-// Re-export specific agent functions for the Orchestrator to use or direct consumption
+// Re-export specific agent functions
 export { investigateScene, summarizeMemory, debugSimulation };
 
-// --- Main Orchestrator ---
-export const processTurn = async (
+// --- PHASE 1: NARRATIVE (Fast, User Facing) ---
+export const generateStory = async (
   action: string, 
   currentState: GameState
-): Promise<SimulationResponse> => {
+): Promise<NarrativeResponse> => {
+  return await synthesizeNarrative(action, currentState);
+};
+
+// --- PHASE 2: STATE SYNCHRONIZATION (Background) ---
+export const synchronizeState = async (
+  action: string,
+  narrative: string,
+  currentState: GameState
+): Promise<{ world: WorldUpdate, npcs: NPCBehaviorResponse }> => {
   
-  // PARALLEL EXECUTION:
-  // We fire both the Narrator (World/Physics) and the NPC Engine (Behavior) at the same time.
-  // This significantly reduces latency.
-  const [narrativeRes, npcRes] = await Promise.all([
-    resolveNarrative(action, currentState),
-    runNPCBehaviorEngine(currentState, action)
+  // Parallel execution of state updaters
+  const [worldRes, npcRes] = await Promise.all([
+    runWorldSimulation(action, narrative, currentState),
+    runNPCBehaviorEngine(currentState, action, narrative)
   ]);
 
-  // Merge Results
-  // Note: NPC Engine runs on 'previous' state + action, so it might slightly lag on 
-  // location changes (e.g. if player leaves room, NPC might still think they are there for 1 turn).
-  // This is acceptable for the performance gain and often simulates "reaction time".
   return {
-    ...narrativeRes,
-    npcSimulation: npcRes.npcs
+    world: worldRes,
+    npcs: npcRes
   };
 };
 

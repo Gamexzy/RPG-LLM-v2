@@ -87,3 +87,26 @@ export const retrieveContext = async (query: string): Promise<string[]> => {
     return [];
   }
 };
+
+/**
+ * Verifica se o servidor backend está online.
+ * Utiliza um timeout curto para não travar a UI.
+ */
+export const checkBackendHealth = async (): Promise<boolean> => {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    
+    // Tenta pingar a raiz ou endpoint de health
+    const response = await fetch(`${SERVER_URL}/`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    return response.ok;
+  } catch (error) {
+    return false;
+  }
+};

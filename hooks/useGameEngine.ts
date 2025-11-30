@@ -13,10 +13,11 @@ export const useGameEngine = () => {
   const [isSyncingState, setIsSyncingState] = useState(false); // New state for background work
   const [setupMode, setSetupMode] = useState(true);
 
-  const startGame = async (name: string, setting: string) => {
+  // Updated to accept universeId and universeName
+  const startGame = async (name: string, setting: string, universeId: string, universeName: string) => {
     setIsProcessing(true);
     try {
-      const sim = await initializeGame(name, setting);
+      const sim = await initializeGame(name, setting, universeId, universeName);
       const initialEntry: ChatEntry = {
         role: 'model',
         text: sim.narrative,
@@ -34,6 +35,7 @@ export const useGameEngine = () => {
       const startClock = sim.initialTime || "01/01/2042 08:00";
 
       setGameState({
+        universeId: universeId, // Store the Universe ID
         player: {
           name: name,
           description: "Sobrevivente",
@@ -53,8 +55,7 @@ export const useGameEngine = () => {
       });
       setSetupMode(false);
       
-      // Index initial story to RAG
-      ingestMemory(sim.narrative, { turn: 0, location: "START", type: "intro" });
+      // Indexing is now handled inside initializeGame via ingestUnifiedMemory
 
     } catch (error) {
       console.error("Failed to start game:", error);
@@ -121,18 +122,12 @@ export const useGameEngine = () => {
         setIsProcessing(false);
         setIsSyncingState(true);
 
-        // --- PHASE 2: SYNCHRONIZE STATE & RAG (BACKGROUND) ---
+        // --- PHASE 2: SYNCHRONIZE STATE & TRIPLE STORE (BACKGROUND) ---
         
-        // A. Send to Python RAG Server (Fire and Forget)
-        ingestMemory(`[Action]: ${actionText}\n[Result]: ${narrativeRes.narrative}`, { 
-            turn: currentState.history.length, 
-            location: currentState.player.location,
-            type: "turn"
-        });
-
         // B. Updates Inventory, Time, NPCs based on the story just generated.
+        // We now pass 'narrativeRes' so the synchronizer can extract graph data for Neo4j
         try {
-            const { world, npcs } = await synchronizeState(actionText, narrativeRes.narrative, currentState);
+            const { world, npcs } = await synchronizeState(actionText, narrativeRes.narrative, currentState, narrativeRes);
             
             setGameState(prev => {
                 if (!prev) return null;

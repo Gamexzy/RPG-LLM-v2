@@ -8,6 +8,9 @@ export const WORLD_MODEL = "gemini-2.5-flash";
 // NPCs: Requires speed (low latency) for parallel execution.
 export const NPC_MODEL = "gemini-2.5-flash";
 
+// Dialogue Agent: Specialized, fast model for character voices (Hand-off architecture).
+export const DIALOGUE_MODEL = "gemini-2.5-flash";
+
 // Narrator: Receives inputs from others. Needs high context window and creativity.
 export const NARRATOR_MODEL = "gemini-2.5-pro";
 

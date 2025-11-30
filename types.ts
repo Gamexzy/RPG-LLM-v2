@@ -26,7 +26,18 @@ export interface NPCEntity {
   status: string; // Physical status
 }
 
+// NEW: Structure for Neo4j Relationships
+export interface GraphEdge {
+  subject: string;   // e.g., "Kael"
+  relation: string;  // e.g., "MET", "ATTACKED", "IS_INSIDE", "OWNS"
+  object: string;    // e.g., "Tavern", "Iron Sword"
+  properties?: Record<string, any>; // Optional metadata
+}
+
 export interface GameState {
+  // META DATA
+  universeId: string; // Links this save to a persistent universe database
+
   player: {
     name: string;
     description: string;
@@ -62,6 +73,24 @@ export interface ChatEntry {
   type?: 'action' | 'investigation' | 'debug';
 }
 
+// --- LIBRARY TYPES (HUB) ---
+
+export interface UniverseTemplate {
+  id: string;
+  name: string;
+  description: string;
+  genre: string;
+  createdAt: number;
+}
+
+export interface CharacterTemplate {
+  id: string;
+  name: string;
+  description: string; // Backstory or physical description
+  archetype: string;
+  createdAt: number;
+}
+
 // --- AI Response Types ---
 
 // 1. World Agent Response (Pure Logic)
@@ -86,6 +115,13 @@ export interface NPCBehaviorResponse {
 // 3. Narrator Agent Response (Pure Text & Knowledge)
 export interface NarrativeResponse {
   narrative: string; // The final prose
+  
+  // Persistent Universe Memory (ChromaDB/Lore)
+  canonicalEvents?: string[]; 
+
+  // Knowledge Graph Updates (Neo4j)
+  graphUpdates?: GraphEdge[];
+
   knowledgeUpdate?: {
     characters?: KnowledgeEntry[];
     locations?: KnowledgeEntry[];

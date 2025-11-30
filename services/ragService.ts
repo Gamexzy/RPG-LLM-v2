@@ -1,47 +1,79 @@
 
-// --- RAG CLIENT SERVICE ---
-// Este serviço conecta o frontend React ao seu servidor Python RAG.
-// Padrão esperado: FastAPI ou Flask rodando em localhost:8000.
+import { GameState, GraphEdge } from "../types";
 
-const RAG_SERVER_URL = "http://localhost:8000";
+// --- RAG & TRIPLE STORE CLIENT SERVICE ---
+// Este serviço conecta o frontend React ao servidor Python Backend.
+// O Backend agora deve suportar ChromaDB (Vector), SQLite (Logs) e Neo4j (Graph).
+const SERVER_URL = "https://6b10889bffdd.ngrok-free.app";
 
 export interface RagDocument {
   page_content: string;
   metadata: any;
 }
 
+// Payload unificado para envio aos 3 servidores de uma vez
+export interface UnifiedIngestPayload {
+  universeId: string;
+  turnId: number;
+  timestamp: string; // Game Time
+  
+  // 1. CHROMA DB (Semantic)
+  vectorData: {
+    text: string;
+    type: 'turn' | 'lore' | 'intro';
+    location: string;
+  };
+
+  // 2. SQLITE (Structured Log)
+  sqlData: {
+    playerStatus: any;
+    inventory: string[];
+    worldState: any;
+  };
+
+  // 3. NEO4J (Graph Relations)
+  graphData: GraphEdge[];
+}
+
 /**
- * Envia a narrativa recente para ser indexada no servidor Python.
- * Deve ser chamado em background após cada turno.
+ * Envia o Snapshot completo do turno para o Backend.
+ * O Backend Python deve rotear cada parte para seu DB específico.
  */
-export const ingestMemory = async (text: string, metadata: { turn: number; location: string; type: string }) => {
+export const ingestUnifiedMemory = async (payload: UnifiedIngestPayload) => {
   try {
-    // Fail-safe: Se não houver servidor, apenas ignora silenciosamente ou loga aviso leve.
-    const response = await fetch(`${RAG_SERVER_URL}/ingest`, {
+    const response = await fetch(`${SERVER_URL}/ingest/unified`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: text,
-        metadata: metadata
-      })
+      body: JSON.stringify(payload)
     });
     
     if (!response.ok) {
-        console.warn("RAG Server Ingest Error:", response.statusText);
+        console.warn("Triple Store Ingest Error:", response.statusText);
     }
   } catch (error) {
-    // Servidor provavelmente offline, ignoramos para não travar o jogo.
-    console.debug("RAG Server offline (Ingest skipped).");
+    console.debug("Backend offline (Ingest skipped).");
   }
 };
 
+// Legacy support wrapper (para compatibilidade com chamadas antigas, se houver)
+export const ingestMemory = async (text: string, metadata: { turn: number; location: string; type: string; universeId?: string }) => {
+    // This is a simplified fallback. Ideally, use ingestUnifiedMemory.
+    try {
+        await fetch(`${SERVER_URL}/ingest`, {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ text, metadata })
+        });
+    } catch(e) {}
+};
+
 /**
- * Busca memórias relevantes baseadas na ação atual do jogador.
- * Deve ser chamado ANTES do Narrador gerar a história.
+ * Busca memórias relevantes (Vector Search).
+ * Pode ser expandido futuramente para buscar também no Graph (Neo4j).
  */
 export const retrieveContext = async (query: string): Promise<string[]> => {
   try {
-    const response = await fetch(`${RAG_SERVER_URL}/query`, {
+    const response = await fetch(`${SERVER_URL}/query`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: query })
@@ -50,10 +82,8 @@ export const retrieveContext = async (query: string): Promise<string[]> => {
     if (!response.ok) return [];
 
     const data = await response.json();
-    // Esperamos que o python retorne: { documents: ["texto 1", "texto 2"] }
     return data.documents || [];
   } catch (error) {
-    console.debug("RAG Server offline (Retrieval skipped).");
     return [];
   }
 };

@@ -74,6 +74,24 @@ export const NarrativeSchema: Schema = {
       type: Type.STRING,
       description: "The final 2nd person story text combining World State and NPC Actions."
     },
+    canonicalEvents: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
+      description: "CRITICAL: List of major events that change the Universe History forever (e.g., 'Player killed the King', 'The Temple collapsed'). Used for persistent world memory."
+    },
+    graphUpdates: {
+      type: Type.ARRAY,
+      description: "Relationships detected in this scene for the Neo4j Knowledge Graph.",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          subject: { type: Type.STRING, description: "The source entity (Character, Location, Faction)." },
+          relation: { type: Type.STRING, description: "The relationship verb in UPPERCASE (e.g., MET, ATTACKED, VISITED, OWNS, IS_LOCATED_IN)." },
+          object: { type: Type.STRING, description: "The target entity." }
+        },
+        required: ["subject", "relation", "object"]
+      }
+    },
     knowledgeUpdate: {
       type: Type.OBJECT,
       description: "Updates to Codex based on the narrative revealed.",
@@ -124,7 +142,6 @@ export const NarrativeSchema: Schema = {
 };
 
 // --- INIT SCHEMA (Used for bootstrapping) ---
-// Combines everything for the very first turn to simplify setup
 export const InitSchema: Schema = {
     type: Type.OBJECT,
     properties: {
@@ -133,6 +150,8 @@ export const InitSchema: Schema = {
             description: "The starting date and time in strict format 'DD/MM/YYYY HH:MM' appropriate for the setting." 
         },
         narrative: NarrativeSchema.properties?.narrative,
+        canonicalEvents: NarrativeSchema.properties?.canonicalEvents,
+        graphUpdates: NarrativeSchema.properties?.graphUpdates,
         worldUpdate: WorldEngineSchema,
         npcSimulation: NPCBehaviorSchema.properties?.npcs
     },

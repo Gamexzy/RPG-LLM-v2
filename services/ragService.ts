@@ -3,7 +3,6 @@ import { GameState, GraphEdge } from "../types";
 
 // --- RAG & TRIPLE STORE CLIENT SERVICE ---
 // Este serviço conecta o frontend React ao servidor Python Backend.
-// O Backend agora deve suportar ChromaDB (Vector), SQLite (Logs) e Neo4j (Graph).
 const SERVER_URL = "https://6b10889bffdd.ngrok-free.app";
 
 export interface RagDocument {
@@ -13,6 +12,7 @@ export interface RagDocument {
 
 // Payload unificado para envio aos 3 servidores de uma vez
 export interface UnifiedIngestPayload {
+  userId: string; // NOVO: Identificação do usuário proprietário dos dados
   universeId: string;
   turnId: number;
   timestamp: string; // Game Time
@@ -55,30 +55,18 @@ export const ingestUnifiedMemory = async (payload: UnifiedIngestPayload) => {
   }
 };
 
-// Legacy support wrapper (para compatibilidade com chamadas antigas, se houver)
-export const ingestMemory = async (text: string, metadata: { turn: number; location: string; type: string; universeId?: string }) => {
-    // This is a simplified fallback. Ideally, use ingestUnifiedMemory.
-    try {
-        await fetch(`${SERVER_URL}/ingest`, {
-             method: 'POST',
-             headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ text, metadata })
-        });
-    } catch(e) {}
-};
-
 /**
- * Busca memórias relevantes (Vector Search) ESPECÍFICAS DE UM UNIVERSO.
- * O `universeId` atua como a chave do banco de dados/coleção.
+ * Busca memórias relevantes (Vector Search) ESPECÍFICAS DE UM UNIVERSO E USUÁRIO.
  */
-export const retrieveContext = async (query: string, universeId: string): Promise<string[]> => {
+export const retrieveContext = async (query: string, universeId: string, userId: string): Promise<string[]> => {
   try {
     const response = await fetch(`${SERVER_URL}/query`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
           query: query,
-          universeId: universeId // Partition Key
+          universeId: universeId, // Partition Key 1
+          userId: userId          // Partition Key 2
       })
     });
 
@@ -93,7 +81,6 @@ export const retrieveContext = async (query: string, universeId: string): Promis
 
 /**
  * Verifica se o servidor backend está online.
- * Utiliza um timeout curto para não travar a UI.
  */
 export const checkBackendHealth = async (): Promise<boolean> => {
   try {

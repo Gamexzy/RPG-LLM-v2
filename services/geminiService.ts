@@ -44,7 +44,7 @@ export const synchronizeState = async (
   ]);
 
   // --- TRIPLE STORE INGESTION ---
-  if (narrativeResponse) {
+  if (narrativeResponse && currentState.userId) {
       
       // Calculate snapshot of inventory for logs
       let currentInventory = [...currentState.player.inventory];
@@ -56,6 +56,7 @@ export const synchronizeState = async (
       }
 
       const payload: UnifiedIngestPayload = {
+          userId: currentState.userId,
           universeId: currentState.universeId,
           turnId: currentState.history.length + 1,
           timestamp: currentState.world.time, 
@@ -104,13 +105,13 @@ export const synchronizeState = async (
   };
 };
 
-export const initializeGame = async (character: CharacterTemplate, setting: string, universeId: string, universeName: string): Promise<SimulationResponse> => {
+export const initializeGame = async (character: CharacterTemplate, setting: string, universeId: string, universeName: string, userId: string): Promise<SimulationResponse> => {
   // 1. Narrator creates initial state, pulling RAG context from the Universe ID
-  // We pass the full character object to give the narrator the "Soul" context
-  const rawResponse = await initializeGameSession(character, setting, universeId, universeName);
+  const rawResponse = await initializeGameSession(character, setting, universeId, universeName, userId);
 
   // 2. Resolve any initial dialogues (though less likely in intro, it supports it)
   const mockState: GameState = {
+    userId: userId,
     universeId: universeId,
     player: { 
         sourceId: character.id,
@@ -138,6 +139,7 @@ export const initializeGame = async (character: CharacterTemplate, setting: stri
 
   // Ingest initial LORE if generated
   const payload: UnifiedIngestPayload = {
+      userId: userId,
       universeId: universeId,
       turnId: 0,
       timestamp: rawResponse.initialTime || "Start",

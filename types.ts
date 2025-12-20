@@ -44,6 +44,7 @@ export interface PlayerStats {
 
 export interface GameState {
   universeId: string; // Link to the "Stage"
+  userId?: string;    // Link to the "User/Owner"
 
   player: {
     sourceId: string; // Link to the "Soul/Identity" (CharacterTemplate ID)

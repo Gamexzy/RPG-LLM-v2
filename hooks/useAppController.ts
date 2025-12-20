@@ -10,14 +10,23 @@ import { UniverseTemplate, CharacterTemplate } from '../types';
 export type ViewState = 'ADVENTURE_LAUNCHER' | 'ADVENTURE_LIST' | 'UNIVERSE_LIST' | 'UNIVERSE_CREATOR' | 'CHARACTER_LIST' | 'CHARACTER_CREATOR' | 'SETTINGS' | 'GAME';
 
 export const useAppController = () => {
+  // Auth State
+  const [userId, setUserId] = useState<string | null>(null);
+
   const [hasApiKey, setHasApiKey] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isInvestigationMode, setIsInvestigationMode] = useState(false);
   const [currentView, setCurrentView] = useState<ViewState>('ADVENTURE_LAUNCHER');
   const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'offline'>('checking');
 
-  // Library & Persistence
-  const { universes, characters, addUniverse, addCharacter, restoreDefaults, evolveUniverse, trackCharacterUsage, addAdventureRecord } = useLibrary();
+  // Check for stored session on mount
+  useEffect(() => {
+    const storedUser = localStorage.getItem('cronos_session_user');
+    if (storedUser) setUserId(storedUser);
+  }, []);
+
+  // Library & Persistence (Depende do userId)
+  const { universes, characters, addUniverse, addCharacter, restoreDefaults, evolveUniverse, trackCharacterUsage, addAdventureRecord } = useLibrary(userId || undefined);
   const { saveGame, parseSaveFile } = usePersistence();
 
   // Game Engine
@@ -42,9 +51,28 @@ export const useAppController = () => {
     }
   }, [currentView]);
 
+  // --- Auth Handlers ---
+  const handleLogin = (id: string) => {
+      localStorage.setItem('cronos_session_user', id);
+      setUserId(id);
+      setCurrentView('ADVENTURE_LAUNCHER');
+  };
+
+  const handleLogout = () => {
+      if (window.confirm('Deseja realmente desconectar?')) {
+          localStorage.removeItem('cronos_session_user');
+          // Ordem importante: Primeiro reseta o jogo, depois a view, depois o user
+          resetGame();
+          setCurrentView('ADVENTURE_LAUNCHER');
+          setUserId(null);
+      }
+  };
+
   // --- Handlers ---
 
   const handleStartAdventure = (u: UniverseTemplate, c: CharacterTemplate) => {
+    if (!userId) return;
+
     trackCharacterUsage(c.id);
     addAdventureRecord(u, c);
 
@@ -79,7 +107,8 @@ export const useAppController = () => {
       ---
     `;
     
-    startGame(c, fullSettingContext, u.id, u.name);
+    // Pass userId to startGame
+    startGame(c, fullSettingContext, u.id, u.name, userId);
     setCurrentView('GAME');
   };
 
@@ -121,6 +150,7 @@ export const useAppController = () => {
 
   return {
     state: {
+      userId,
       hasApiKey,
       isSidebarOpen,
       isInvestigationMode,
@@ -144,7 +174,9 @@ export const useAppController = () => {
       handleStartAdventure,
       handleLoadGame,
       handleExitToHub,
-      handleTabChange
+      handleTabChange,
+      handleLogin,
+      handleLogout
     },
     computed: {
       activeTab: getActiveTab()

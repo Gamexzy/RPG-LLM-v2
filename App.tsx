@@ -1,6 +1,7 @@
 
 import React from 'react';
 import ApiKeyModal from './components/ApiKeyModal';
+import LoginScreen from './components/auth/LoginScreen';
 
 // Architecture
 import { useAppController } from './hooks/useAppController';
@@ -19,6 +20,11 @@ function App() {
 
   if (!state.hasApiKey) {
     return <ApiKeyModal onKeySelected={() => actions.setHasApiKey(true)} />;
+  }
+
+  // Se não estiver logado, mostra tela de login
+  if (!state.userId) {
+      return <LoginScreen onLogin={actions.handleLogin} />;
   }
 
   return (
@@ -71,9 +77,11 @@ function App() {
 
       {state.currentView === 'SETTINGS' && (
          <SettingsScreen 
+            userId={state.userId}
             backendStatus={state.backendStatus}
             onRestoreDefaults={() => { if(confirm('Restaurar templates?')) { actions.restoreDefaults(); alert('Restaurado!'); window.location.reload(); } }}
             onFactoryReset={() => { if(confirm('Limpar TUDO?')) { localStorage.clear(); window.location.reload(); } }}
+            onLogout={actions.handleLogout}
          />
       )}
 

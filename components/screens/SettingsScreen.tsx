@@ -5,17 +5,24 @@ interface SettingsScreenProps {
   backendStatus: 'checking' | 'online' | 'offline';
   onRestoreDefaults: () => void;
   onFactoryReset: () => void;
+  userId?: string;
+  onLogout: () => void;
 }
 
-const SettingsScreen: React.FC<SettingsScreenProps> = ({ backendStatus, onRestoreDefaults, onFactoryReset }) => {
+const SettingsScreen: React.FC<SettingsScreenProps> = ({ backendStatus, onRestoreDefaults, onFactoryReset, userId, onLogout }) => {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center text-stone-500 text-sm p-8 animate-fade-in overflow-y-auto">
-      <div className="text-center space-y-4 max-w-md w-full pb-20">
+    <div className="flex-1 flex flex-col items-center justify-center text-stone-500 text-sm p-8 animate-fade-in overflow-y-auto pb-24">
+      <div className="text-center space-y-4 max-w-md w-full">
         <h2 className="text-2xl font-serif text-stone-300">Sistema Cronos</h2>
         <p className="text-xs uppercase tracking-widest border-b border-stone-900 pb-4">Diagnósticos & Configuração</p>
         
         <div className="bg-stone-900/30 p-6 rounded border border-stone-800 text-left space-y-6">
           
+          <div className="border-b border-stone-800 pb-2 mb-2 flex justify-between items-center">
+             <h3 className="text-stone-400 font-serif text-sm uppercase tracking-wider">Identidade</h3>
+             <span className="text-[10px] text-amber-500 bg-stone-900 px-2 py-0.5 rounded font-mono">{userId || 'Desconhecido'}</span>
+          </div>
+
           <div className="border-b border-stone-800 pb-2 mb-2 flex justify-between items-center">
              <h3 className="text-stone-400 font-serif text-sm uppercase tracking-wider">Topologia de Rede</h3>
              <span className="text-[9px] text-stone-600 bg-stone-900 px-2 py-0.5 rounded">2 Nós Ativos</span>
@@ -74,17 +81,28 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ backendStatus, onRestor
 
           <div>
             <label className="block text-[10px] uppercase text-stone-600 mb-1">Versão do Cliente</label>
-            <span className="text-stone-400 text-xs font-mono">v2.0.0 (Modularized)</span>
+            <span className="text-stone-400 text-xs font-mono">v2.1.0 (Auth + Multi-Tenant)</span>
           </div>
 
            <div>
             <label className="block text-[10px] uppercase text-stone-600 mb-1">Manutenção</label>
             <div className="flex flex-col gap-2">
-               <button onClick={onRestoreDefaults} className="text-amber-500 hover:text-amber-400 text-xs text-left">
+               <button onClick={onRestoreDefaults} className="text-amber-500 hover:text-amber-400 text-xs text-left p-2 hover:bg-stone-950/50 rounded transition-colors">
                  Restaurar Templates de Exemplo
                </button>
-               <button onClick={onFactoryReset} className="text-red-500 hover:text-red-400 text-xs text-left">
+               <button onClick={onFactoryReset} className="text-red-500 hover:text-red-400 text-xs text-left p-2 hover:bg-stone-950/50 rounded transition-colors">
                  Limpar Dados Locais (Reset Fábrica)
+               </button>
+                <div className="h-px bg-stone-800 w-full my-1"></div>
+               <button 
+                type="button" 
+                onClick={onLogout} 
+                className="text-stone-400 hover:text-white hover:bg-red-900/20 hover:border-red-900/50 border border-transparent text-xs text-left flex items-center gap-2 p-3 rounded transition-all duration-200 group w-full"
+               >
+                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 group-hover:text-red-500">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                 </svg>
+                 Encerrar Sessão
                </button>
             </div>
           </div>

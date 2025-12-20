@@ -14,11 +14,12 @@ export const synthesizeNarrative = async (
 ): Promise<NarrativeResponse> => {
   
   // 1. RAG RETRIEVAL (Tenta buscar memórias no servidor Python)
-  // Buscamos baseados na ação, localização E HISTÓRIA DO UNIVERSO
-  // O UniverseID é passado para isolar a busca no banco de dados correto.
+  // Buscamos baseados na ação, localização E HISTÓRIA DO UNIVERSO + USUÁRIO
   const ragQuery = `Action: ${action} | Location: ${currentState.player.location}`;
   
-  const longTermMemories = await retrieveContext(ragQuery, currentState.universeId);
+  // Adicione proteção se userId não existir (ex: saves antigos), use 'guest'
+  const userId = currentState.userId || 'guest';
+  const longTermMemories = await retrieveContext(ragQuery, currentState.universeId, userId);
   
   const formattedMemories = longTermMemories.length > 0 
     ? `[MEMÓRIAS E LENDAS RECUPERADAS DO BANCO DE DADOS DO UNIVERSO]:\n${longTermMemories.map(m => `- ${m}`).join('\n')}`
@@ -71,11 +72,11 @@ export const synthesizeNarrative = async (
   return parseAIResponse<NarrativeResponse>(response.text);
 };
 
-export const initializeGameSession = async (character: CharacterTemplate, setting: string, universeId: string, universeName: string): Promise<SimulationResponse> => {
+export const initializeGameSession = async (character: CharacterTemplate, setting: string, universeId: string, universeName: string, userId: string): Promise<SimulationResponse> => {
   
   // No início, buscamos Lendas Gerais do Universo específico para dar contexto
   const ragQuery = `Overview history legends of universe ${universeName}`;
-  const loreContext = await retrieveContext(ragQuery, universeId);
+  const loreContext = await retrieveContext(ragQuery, universeId, userId);
 
   const formattedLore = loreContext.length > 0 
     ? `[LENDAS E HISTÓRIA DO UNIVERSO (CONTEXTO RAG)]:\n${loreContext.map(m => `- ${m}`).join('\n')}`

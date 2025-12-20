@@ -21,10 +21,10 @@ export const useGameEngine = (evolveUniverse?: (id: string, updates: any) => voi
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSyncingState, setIsSyncingState] = useState(false);
 
-  const startGame = async (character: CharacterTemplate, setting: string, universeId: string, universeName: string) => {
+  const startGame = async (character: CharacterTemplate, setting: string, universeId: string, universeName: string, userId: string) => {
     setIsProcessing(true);
     try {
-      const sim = await initializeGame(character, setting, universeId, universeName);
+      const sim = await initializeGame(character, setting, universeId, universeName, userId);
       
       const initialEntry: ChatEntry = {
         role: 'model',
@@ -41,6 +41,7 @@ export const useGameEngine = (evolveUniverse?: (id: string, updates: any) => voi
       }, sim.knowledgeUpdate);
 
       setGameState({
+        userId: userId,
         universeId: universeId,
         player: {
           sourceId: character.id, // THE LINK TO IDENTITY
@@ -156,7 +157,6 @@ export const useGameEngine = (evolveUniverse?: (id: string, updates: any) => voi
   };
 
   const resetGame = () => { 
-    // Removed confirm() here because App.tsx handles the UI confirmation.
     setGameState(null); 
   };
   

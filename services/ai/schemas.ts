@@ -1,47 +1,37 @@
 
 import { Schema, Type } from "@google/genai";
 
-// --- AGENT 1: WORLD ENGINE SCHEMA ---
 export const WorldEngineSchema: Schema = {
   type: Type.OBJECT,
   properties: {
-    actionResult: {
-      type: Type.STRING,
-      description: "Objective outcome of player action based on physics/logic. (e.g., 'Success: Door opened', 'Fail: Too heavy')."
-    },
-    playerStatus: {
-      type: Type.STRING,
-      description: "Current physical condition of player."
-    },
-    newLocation: {
-      type: Type.STRING,
-      description: "The location name after the action."
-    },
-    timePassed: {
-      type: Type.STRING,
-      description: "How much time passed during this action (e.g., '10 minutes')."
-    },
-    currentWeather: {
-      type: Type.STRING,
-      description: "Current weather or atmosphere."
-    },
-    worldEvents: {
-      type: Type.ARRAY,
-      items: { type: Type.STRING },
-      description: "Ongoing background events unrelated to player."
-    },
+    actionResult: { type: Type.STRING },
+    playerStatus: { type: Type.STRING },
+    newLocation: { type: Type.STRING },
+    timePassed: { type: Type.STRING },
+    currentWeather: { type: Type.STRING },
+    worldEvents: { type: Type.ARRAY, items: { type: Type.STRING } },
     inventoryUpdates: {
       type: Type.OBJECT,
       properties: {
         added: { type: Type.ARRAY, items: { type: Type.STRING } },
         removed: { type: Type.ARRAY, items: { type: Type.STRING } }
       }
+    },
+    statChanges: {
+      type: Type.OBJECT,
+      properties: {
+        health: { type: Type.NUMBER },
+        strength: { type: Type.NUMBER },
+        agility: { type: Type.NUMBER },
+        intelligence: { type: Type.NUMBER },
+        spirit: { type: Type.NUMBER }
+      },
+      description: "Numeric changes to player stats. Use negative for damage/loss."
     }
   },
   required: ["actionResult", "playerStatus", "newLocation", "timePassed", "currentWeather", "worldEvents"]
 };
 
-// --- AGENT 2: NPC ENGINE SCHEMA ---
 export const NPCBehaviorSchema: Schema = {
   type: Type.OBJECT,
   properties: {
@@ -66,92 +56,49 @@ export const NPCBehaviorSchema: Schema = {
   required: ["npcs"]
 };
 
-// --- AGENT 3: NARRATOR SCHEMA (Funnel) ---
 export const NarrativeSchema: Schema = {
   type: Type.OBJECT,
   properties: {
-    narrative: {
-      type: Type.STRING,
-      description: "The final 2nd person story text combining World State and NPC Actions."
+    narrative: { type: Type.STRING },
+    canonicalEvents: { 
+        type: Type.ARRAY, 
+        items: { type: Type.STRING },
+        description: "Events that change the history of the universe (e.g., Kings dying, Wars starting)."
     },
-    canonicalEvents: {
-      type: Type.ARRAY,
-      items: { type: Type.STRING },
-      description: "CRITICAL: List of major events that change the Universe History forever (e.g., 'Player killed the King', 'The Temple collapsed'). Used for persistent world memory."
+    discoveredTruths: { 
+        type: Type.ARRAY, 
+        items: { type: Type.STRING },
+        description: "New rules of physics, magic, or deep lore discovered in this turn (e.g., 'Gold blocks magic')."
     },
     graphUpdates: {
       type: Type.ARRAY,
-      description: "Relationships detected in this scene for the Neo4j Knowledge Graph.",
       items: {
         type: Type.OBJECT,
         properties: {
-          subject: { type: Type.STRING, description: "The source entity (Character, Location, Faction)." },
-          relation: { type: Type.STRING, description: "The relationship verb in UPPERCASE (e.g., MET, ATTACKED, VISITED, OWNS, IS_LOCATED_IN)." },
-          object: { type: Type.STRING, description: "The target entity." }
+          subject: { type: Type.STRING },
+          relation: { type: Type.STRING },
+          object: { type: Type.STRING }
         },
         required: ["subject", "relation", "object"]
       }
     },
     knowledgeUpdate: {
       type: Type.OBJECT,
-      description: "Updates to Codex based on the narrative revealed.",
       properties: {
-        characters: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              id: { type: Type.STRING },
-              type: { type: Type.STRING, enum: ["character"] },
-              description: { type: Type.STRING },
-              status: { type: Type.STRING }
-            },
-            required: ["id", "type", "description"]
-          }
-        },
-        locations: {
-           type: Type.ARRAY,
-           items: {
-            type: Type.OBJECT,
-            properties: {
-              id: { type: Type.STRING },
-              type: { type: Type.STRING, enum: ["location"] },
-              description: { type: Type.STRING },
-              status: { type: Type.STRING }
-            },
-            required: ["id", "type", "description"]
-          }
-        },
-        quests: {
-           type: Type.ARRAY,
-           items: {
-            type: Type.OBJECT,
-            properties: {
-              id: { type: Type.STRING },
-              title: { type: Type.STRING },
-              description: { type: Type.STRING },
-              status: { type: Type.STRING, enum: ["active", "completed", "failed"] }
-            },
-            required: ["id", "title", "description", "status"]
-          }
-        }
+        characters: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, type: { type: Type.STRING }, description: { type: Type.STRING } }, required: ["id", "type", "description"] } },
+        locations: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, type: { type: Type.STRING }, description: { type: Type.STRING } }, required: ["id", "type", "description"] } },
+        quests: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, title: { type: Type.STRING }, description: { type: Type.STRING }, status: { type: Type.STRING } }, required: ["id", "title", "description", "status"] } }
       }
     }
   },
   required: ["narrative"]
 };
 
-// --- INIT SCHEMA (Used for bootstrapping) ---
 export const InitSchema: Schema = {
     type: Type.OBJECT,
     properties: {
-        initialTime: { 
-            type: Type.STRING, 
-            description: "The starting date and time in strict format 'DD/MM/YYYY HH:MM' appropriate for the setting." 
-        },
+        initialTime: { type: Type.STRING },
         narrative: NarrativeSchema.properties?.narrative,
-        canonicalEvents: NarrativeSchema.properties?.canonicalEvents,
-        graphUpdates: NarrativeSchema.properties?.graphUpdates,
         worldUpdate: WorldEngineSchema,
         npcSimulation: NPCBehaviorSchema.properties?.npcs
     },

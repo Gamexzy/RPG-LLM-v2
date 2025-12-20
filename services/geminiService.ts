@@ -1,5 +1,5 @@
 
-import { GameState, SimulationResponse, NarrativeResponse, WorldUpdate, NPCBehaviorResponse } from "../types";
+import { GameState, SimulationResponse, NarrativeResponse, WorldUpdate, NPCBehaviorResponse, CharacterTemplate } from "../types";
 import { synthesizeNarrative, initializeGameSession } from "./agents/narrator";
 import { runNPCBehaviorEngine } from "./agents/npc";
 import { runWorldSimulation } from "./agents/world";
@@ -23,12 +23,6 @@ export const generateStory = async (
   const finalNarrativeText = await resolveDialogueTags(rawResponse.narrative, currentState);
 
   // 3. RETURN immediately for UI rendering.
-  // We process memory ingestion (Triple Store) AFTER this function returns 
-  // (usually in the hook or explicitly called below if we want to block, 
-  // but let's stick to the separation of concerns in the hook, OR utilize the data here).
-  // Actually, for consistency, let's attach the raw graph data to the return 
-  // so the main engine hook can send the unified payload once it has the WORLD update too.
-
   return {
     ...rawResponse,
     narrative: finalNarrativeText
@@ -50,10 +44,9 @@ export const synchronizeState = async (
   ]);
 
   // --- TRIPLE STORE INGESTION ---
-  // Now that we have the narrative AND the new physical state, we send the Unified Payload.
   if (narrativeResponse) {
       
-      // Calculate snapshot of inventory for logs (to match UnifiedIngestPayload.sqlData.inventory type string[])
+      // Calculate snapshot of inventory for logs
       let currentInventory = [...currentState.player.inventory];
       if (worldRes.inventoryUpdates?.added) {
         currentInventory.push(...worldRes.inventoryUpdates.added);
@@ -65,7 +58,7 @@ export const synchronizeState = async (
       const payload: UnifiedIngestPayload = {
           universeId: currentState.universeId,
           turnId: currentState.history.length + 1,
-          timestamp: currentState.world.time, // Uses old time, could use new time
+          timestamp: currentState.world.time, 
           
           // 1. Vector (Chroma)
           vectorData: {
@@ -95,14 +88,10 @@ export const synchronizeState = async (
       // Handle specific Lore Canonical Events
       if (narrativeResponse.canonicalEvents && narrativeResponse.canonicalEvents.length > 0) {
           narrativeResponse.canonicalEvents.forEach(event => {
-             // We reuse the unified ingest or a specific one? 
-             // Ideally the backend handles 'type: lore' inside the unified payload, 
-             // but let's send a specific lore packet for safety or append to vectorData logic.
-             // For now, let's rely on the user adding logic on backend or sending a second packet.
              const lorePayload: UnifiedIngestPayload = {
                  ...payload,
                  vectorData: { ...payload.vectorData, text: event, type: 'lore' },
-                 graphData: [] // Don't duplicate graph edges
+                 graphData: [] 
              };
              ingestUnifiedMemory(lorePayload);
           });
@@ -115,14 +104,30 @@ export const synchronizeState = async (
   };
 };
 
-export const initializeGame = async (characterName: string, setting: string, universeId: string, universeName: string): Promise<SimulationResponse> => {
+export const initializeGame = async (character: CharacterTemplate, setting: string, universeId: string, universeName: string): Promise<SimulationResponse> => {
   // 1. Narrator creates initial state, pulling RAG context from the Universe ID
-  const rawResponse = await initializeGameSession(characterName, setting, universeId, universeName);
+  // We pass the full character object to give the narrator the "Soul" context
+  const rawResponse = await initializeGameSession(character, setting, universeId, universeName);
 
   // 2. Resolve any initial dialogues (though less likely in intro, it supports it)
   const mockState: GameState = {
     universeId: universeId,
-    player: { name: characterName, description: "", inventory: [], status: "", location: "" },
+    player: { 
+        sourceId: character.id,
+        name: character.name, 
+        description: character.description, 
+        inventory: [], 
+        status: "", 
+        location: "",
+        stats: {
+            strength: 10,
+            agility: 10,
+            intelligence: 10,
+            spirit: 10,
+            health: 100,
+            maxHealth: 100
+        }
+    },
     world: { time: "", weather: "", activeEvents: [], npcs: rawResponse.npcSimulation || [] },
     knowledgeBase: { characters: [], locations: [], lore: [], quests: [] },
     summary: "",

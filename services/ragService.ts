@@ -68,15 +68,18 @@ export const ingestMemory = async (text: string, metadata: { turn: number; locat
 };
 
 /**
- * Busca memórias relevantes (Vector Search).
- * Pode ser expandido futuramente para buscar também no Graph (Neo4j).
+ * Busca memórias relevantes (Vector Search) ESPECÍFICAS DE UM UNIVERSO.
+ * O `universeId` atua como a chave do banco de dados/coleção.
  */
-export const retrieveContext = async (query: string): Promise<string[]> => {
+export const retrieveContext = async (query: string, universeId: string): Promise<string[]> => {
   try {
     const response = await fetch(`${SERVER_URL}/query`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: query })
+      body: JSON.stringify({ 
+          query: query,
+          universeId: universeId // Partition Key
+      })
     });
 
     if (!response.ok) return [];

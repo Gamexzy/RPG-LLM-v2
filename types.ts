@@ -1,5 +1,5 @@
 
-// --- Game State Types ---
+// --- Game State Types (The "Adventure State" - Volatile) ---
 
 export interface KnowledgeEntry {
   id: string; // Name or unique identifier
@@ -16,112 +16,157 @@ export interface QuestEntry {
 }
 
 export interface NPCEntity {
-  id: string; // Unique ID (Internal)
-  name: string; // Real Name (e.g. "Tanaka")
-  descriptor: string; // Visual description (e.g. "Guarda Corpulento")
-  isNameKnown: boolean; // Has the player learned the name?
+  id: string; 
+  name: string; 
+  descriptor: string; 
+  isNameKnown: boolean; 
   location: string;
-  action: string; // Visible action
-  lastThought: string; // Internal monologue
-  status: string; // Physical status
+  action: string; 
+  lastThought: string; 
+  status: string; 
 }
 
-// NEW: Structure for Neo4j Relationships
 export interface GraphEdge {
-  subject: string;   // e.g., "Kael"
-  relation: string;  // e.g., "MET", "ATTACKED", "IS_INSIDE", "OWNS"
-  object: string;    // e.g., "Tavern", "Iron Sword"
-  properties?: Record<string, any>; // Optional metadata
+  subject: string;
+  relation: string;
+  object: string;
+  properties?: Record<string, any>;
+}
+
+export interface PlayerStats {
+  strength: number;
+  agility: number;
+  intelligence: number;
+  spirit: number;
+  health: number;
+  maxHealth: number;
 }
 
 export interface GameState {
-  // META DATA
-  universeId: string; // Links this save to a persistent universe database
+  universeId: string; // Link to the "Stage"
 
   player: {
-    name: string;
-    description: string;
+    sourceId: string; // Link to the "Soul/Identity" (CharacterTemplate ID)
+    name: string;     // Can change in-game (alias), but defaults to Template name
+    description: string; // Current physical state description
     inventory: string[];
-    status: string; // e.g., "Hungry", "Injured", "Healthy"
+    status: string;
     location: string;
+    stats: PlayerStats; 
   };
   world: {
-    time: string; // e.g., "24/10/2123 14:30"
+    time: string;
     weather: string;
-    activeEvents: string[]; // Global events happening
+    activeEvents: string[];
     npcs: NPCEntity[];
   };
-  // Structured Database of the world
   knowledgeBase: {
     characters: KnowledgeEntry[];
     locations: KnowledgeEntry[];
     lore: KnowledgeEntry[];
     quests: QuestEntry[];
   };
-  // The persistent memory of the game, compressed by AI
   summary: string; 
-  // The raw chat history for the immediate context
   history: ChatEntry[];
 }
 
 export interface ChatEntry {
   role: 'user' | 'model' | 'system';
   text: string;
-  // Optional: metadata about what the simulation did this turn
   simulationData?: SimulationResponse; 
-  // Distinguish between standard actions, observation queries and debug
   type?: 'action' | 'investigation' | 'debug';
 }
 
-// --- LIBRARY TYPES (HUB) ---
+// --- Library Templates (The "Identity" & "Cosmos" - Permanent) ---
+
+export interface TimelineEvent {
+  year: string;
+  event: string;
+  era?: string;
+}
+
+export interface ChampionRecord {
+  characterName: string;
+  feat: string;
+  date: string; // Real world date or Game date
+  status: 'Legend' | 'Myth' | 'Forgotten';
+}
+
+export interface WorldEntry {
+    name: string;
+    description: string;
+}
+
+export interface AdventureRecord {
+  id: string;
+  characterName: string;
+  universeName: string;
+  universeGenre: string;
+  startDate: number;
+  lastLocation?: string; // Optional metadata
+}
+
+export type UniverseStructure = 'singular_world' | 'star_cluster' | 'multiverse_hub';
+export type NavigationMethod = 'physical' | 'interstellar_ship' | 'magical_gate' | 'dream_walking';
 
 export interface UniverseTemplate {
   id: string;
-  name: string;
-  description: string;
+  name: string; // Ex: "Dimensão C-137" ou "O Multiverso de Aether"
+  description: string; // Descrição geral do "Vibe"
   genre: string;
   createdAt: number;
+  
+  // V2: Deep Universe Properties
+  structure: UniverseStructure; // NOVO: Define se é Planeta Infinito ou Galáxia
+  navigationMethod: NavigationMethod; // NOVO: Define como se viaja entre os "Wolds"
+  physics: string[]; // Leis fundamentais (Hard Rules)
+  magicSystem: string; 
+  cosmology: string; // Estrutura do universo (Ex: "9 Reinos", "Galáxia Espiral", "Terra Plana Infinita")
+  
+  // V3: Living Database
+  knownTruths: string[]; 
+  chronicles: TimelineEvent[]; // História do Universo (não de um planeta só)
+  champions: ChampionRecord[]; 
+  worlds: WorldEntry[]; // Lista de Planetas/Reinos descobertos onde as tramas ocorrem
 }
 
 export interface CharacterTemplate {
+  // Identity (The Actor)
   id: string;
   name: string;
-  description: string; // Backstory or physical description
-  archetype: string;
+  description: string; // The "essence" or core personality
+  archetype: string;   // The preferred "role" they play
+
+  // Meta-Progression
+  adventuresPlayed?: number; // Tracks usage across all stages
   createdAt: number;
 }
 
 // --- AI Response Types ---
 
-// 1. World Agent Response (Pure Logic)
 export interface WorldUpdate {
-  actionResult: string; // Logic description: "Player successfully picked lock"
-  playerStatus: string; // "Tired but unhurt"
-  newLocation: string; // "Kitchen"
-  timePassed: string; // "15 minutes"
-  currentWeather: string; // "Heavy Rain"
-  worldEvents: string[]; // ["Alarm sounding in distance"]
+  actionResult: string;
+  playerStatus: string;
+  newLocation: string;
+  timePassed: string;
+  currentWeather: string;
+  worldEvents: string[];
   inventoryUpdates: {
     added?: string[];
     removed?: string[];
   };
+  statChanges?: Partial<PlayerStats>;
 }
 
-// 2. NPC Agent Response (Pure Behavior)
 export interface NPCBehaviorResponse {
   npcs: NPCEntity[];
 }
 
-// 3. Narrator Agent Response (Pure Text & Knowledge)
 export interface NarrativeResponse {
-  narrative: string; // The final prose
-  
-  // Persistent Universe Memory (ChromaDB/Lore)
+  narrative: string;
   canonicalEvents?: string[]; 
-
-  // Knowledge Graph Updates (Neo4j)
+  discoveredTruths?: string[]; 
   graphUpdates?: GraphEdge[];
-
   knowledgeUpdate?: {
     characters?: KnowledgeEntry[];
     locations?: KnowledgeEntry[];
@@ -130,11 +175,8 @@ export interface NarrativeResponse {
   };
 }
 
-// Unified response for the frontend
 export interface SimulationResponse extends NarrativeResponse {
-  // We include the raw data from the World Agent so the UI handles updates
-  // while the Narrator handles the text.
   worldUpdate: WorldUpdate;
   npcSimulation: NPCEntity[];
-  initialTime?: string; // Date string for initialization (DD/MM/YYYY HH:MM)
+  initialTime?: string;
 }

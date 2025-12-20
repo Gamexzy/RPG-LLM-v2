@@ -1,23 +1,31 @@
 
 import { useState } from 'react';
-import { GameState, ChatEntry, NPCEntity } from '../types';
+import { GameState, ChatEntry, PlayerStats, CharacterTemplate } from '../types';
 import { initializeGame, generateStory, synchronizeState, summarizeMemory, investigateScene, debugSimulation } from '../services/geminiService';
 import { mergeKnowledge } from '../utils/knowledgeUtils';
-import { ingestMemory } from '../services/ragService';
 
 const MEMORY_THRESHOLD = 8;
 
-export const useGameEngine = () => {
+const DEFAULT_STATS: PlayerStats = {
+  strength: 10,
+  agility: 10,
+  intelligence: 10,
+  spirit: 10,
+  health: 100,
+  maxHealth: 100
+};
+
+// Update signature to accept the evolver function
+export const useGameEngine = (evolveUniverse?: (id: string, updates: any) => void) => {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isSyncingState, setIsSyncingState] = useState(false); // New state for background work
-  const [setupMode, setSetupMode] = useState(true);
+  const [isSyncingState, setIsSyncingState] = useState(false);
 
-  // Updated to accept universeId and universeName
-  const startGame = async (name: string, setting: string, universeId: string, universeName: string) => {
+  const startGame = async (character: CharacterTemplate, setting: string, universeId: string, universeName: string) => {
     setIsProcessing(true);
     try {
-      const sim = await initializeGame(name, setting, universeId, universeName);
+      const sim = await initializeGame(character, setting, universeId, universeName);
+      
       const initialEntry: ChatEntry = {
         role: 'model',
         text: sim.narrative,
@@ -32,20 +40,20 @@ export const useGameEngine = () => {
         quests: []
       }, sim.knowledgeUpdate);
 
-      const startClock = sim.initialTime || "01/01/2042 08:00";
-
       setGameState({
-        universeId: universeId, // Store the Universe ID
+        universeId: universeId,
         player: {
-          name: name,
-          description: "Sobrevivente",
-          inventory: sim.worldUpdate?.inventoryUpdates?.added || ["Roupas do corpo"],
+          sourceId: character.id, // THE LINK TO IDENTITY
+          name: character.name,
+          description: character.description, // Initial state description matches template
+          inventory: sim.worldUpdate?.inventoryUpdates?.added || [],
           status: sim.worldUpdate?.playerStatus || "Saudável",
-          location: sim.worldUpdate?.newLocation || "Desconhecido"
+          location: sim.worldUpdate?.newLocation || "Desconhecido",
+          stats: { ...DEFAULT_STATS }
         },
         world: {
-          time: startClock,
-          weather: sim.worldUpdate?.currentWeather || "Normal",
+          time: sim.initialTime || "Início do Ciclo",
+          weather: sim.worldUpdate?.currentWeather || "Estável",
           activeEvents: sim.worldUpdate?.worldEvents || [],
           npcs: sim.npcSimulation || []
         },
@@ -53,13 +61,9 @@ export const useGameEngine = () => {
         summary: "Início da jornada.",
         history: [initialEntry]
       });
-      setSetupMode(false);
-      
-      // Indexing is now handled inside initializeGame via ingestUnifiedMemory
-
     } catch (error) {
-      console.error("Failed to start game:", error);
-      alert("Erro ao iniciar a simulação. Verifique sua conexão.");
+      console.error(error);
+      alert("Falha na conexão neural.");
     } finally {
       setIsProcessing(false);
     }
@@ -69,194 +73,118 @@ export const useGameEngine = () => {
     if (!gameState) return;
     setIsProcessing(true);
 
-    // 1. Add User Entry immediately
     const userEntry: ChatEntry = { role: 'user', text: actionText, type: mode };
     setGameState(prev => prev ? ({ ...prev, history: [...prev.history, userEntry] }) : null);
 
     try {
       if (mode === 'debug') {
         const result = await debugSimulation(actionText, gameState);
-        const modelEntry: ChatEntry = { role: 'system', text: result, type: 'debug' };
-        setGameState(prev => prev ? ({ ...prev, history: [...prev.history, modelEntry] }) : null);
+        setGameState(prev => prev ? ({ ...prev, history: [...prev.history, { role: 'system', text: result, type: 'debug' }] }) : null);
         setIsProcessing(false);
       } else if (mode === 'investigation') {
         const result = await investigateScene(actionText, gameState);
-        const modelEntry: ChatEntry = { role: 'model', text: result, type: 'investigation' };
-        setGameState(prev => prev ? ({ ...prev, history: [...prev.history, modelEntry] }) : null);
+        setGameState(prev => prev ? ({ ...prev, history: [...prev.history, { role: 'model', text: result, type: 'investigation' }] }) : null);
         setIsProcessing(false);
       } else {
-        // --- PHASE 1: GENERATE NARRATIVE (PRIORITY) ---
-        // Generates the story first so the user is not waiting for physics calculations.
+        const currentState = { ...gameState, history: [...gameState.history, userEntry] };
         
-        // Prepare context
-        let currentState = { ...gameState, history: [...gameState.history, userEntry] };
-        
-        // Check for summarization in background? 
-        // We'll do it as part of the flow to keep context small, but narrative comes first.
-        if (currentState.history.filter(h => h.type !== 'debug').length > MEMORY_THRESHOLD) {
-           summarizeMemory(currentState).then(s => {
-               setGameState(prev => prev ? ({...prev, summary: s}) : null);
-           });
+        if (currentState.history.length > MEMORY_THRESHOLD) {
+           summarizeMemory(currentState).then(s => setGameState(prev => prev ? ({...prev, summary: s}) : null));
         }
 
         const narrativeRes = await generateStory(actionText, currentState);
-        
-        const modelEntry: ChatEntry = {
-          role: 'model',
-          text: narrativeRes.narrative,
-          type: 'action'
-        };
+        const modelEntry: ChatEntry = { role: 'model', text: narrativeRes.narrative, type: 'action' };
 
-        // Update UI with text IMMEDIATELY
+        // --- UNIVERSE EVOLUTION CHECK ---
+        if (evolveUniverse && ((narrativeRes.canonicalEvents && narrativeRes.canonicalEvents.length > 0) || (narrativeRes.discoveredTruths && narrativeRes.discoveredTruths.length > 0))) {
+            console.log("Updating Universe Canon...", narrativeRes.canonicalEvents, narrativeRes.discoveredTruths);
+            evolveUniverse(currentState.universeId, {
+                newEvents: narrativeRes.canonicalEvents,
+                newTruths: narrativeRes.discoveredTruths
+            });
+        }
+        // --------------------------------
+
         setGameState(prev => {
           if (!prev) return null;
-          const updatedKB = mergeKnowledge(prev.knowledgeBase, narrativeRes.knowledgeUpdate);
           return {
             ...prev,
-            knowledgeBase: updatedKB,
+            knowledgeBase: mergeKnowledge(prev.knowledgeBase, narrativeRes.knowledgeUpdate),
             history: [...prev.history, modelEntry]
           };
         });
 
-        // Unlock UI for reading, start background sync
         setIsProcessing(false);
         setIsSyncingState(true);
 
-        // --- PHASE 2: SYNCHRONIZE STATE & TRIPLE STORE (BACKGROUND) ---
-        
-        // B. Updates Inventory, Time, NPCs based on the story just generated.
-        // We now pass 'narrativeRes' so the synchronizer can extract graph data for Neo4j
         try {
             const { world, npcs } = await synchronizeState(actionText, narrativeRes.narrative, currentState, narrativeRes);
             
             setGameState(prev => {
                 if (!prev) return null;
+                
+                // Inventory
+                let newInv = [...prev.player.inventory];
+                if (world.inventoryUpdates?.added) newInv.push(...world.inventoryUpdates.added);
+                if (world.inventoryUpdates?.removed) newInv = newInv.filter(i => !world.inventoryUpdates.removed?.includes(i));
 
-                // Handle Inventory Updates
-                let newInventory = [...prev.player.inventory];
-                if (world.inventoryUpdates?.added) {
-                  newInventory.push(...world.inventoryUpdates.added);
+                // Stats Update
+                const newStats = { ...prev.player.stats };
+                if (world.statChanges) {
+                  Object.entries(world.statChanges).forEach(([key, val]) => {
+                    const k = key as keyof PlayerStats;
+                    if (typeof val === 'number') {
+                      newStats[k] = Math.max(0, Math.min(newStats[k] + val, k === 'health' ? newStats.maxHealth : 99));
+                    }
+                  });
                 }
-                if (world.inventoryUpdates?.removed) {
-                  newInventory = newInventory.filter(item => !world.inventoryUpdates?.removed?.includes(item));
-                }
-
-                // Handle Time Calculation
-                const newTimeStr = calculateNewTime(prev.world.time, world.timePassed);
-
-                // Handle NPCs Merge
-                const updatedNPCs = npcs.npcs || prev.world.npcs;
 
                 return {
                     ...prev,
-                    player: {
-                        ...prev.player,
-                        status: world.playerStatus,
-                        location: world.newLocation,
-                        inventory: newInventory
-                    },
-                    world: {
-                        ...prev.world,
-                        time: newTimeStr,
-                        weather: world.currentWeather,
-                        activeEvents: world.worldEvents,
-                        npcs: updatedNPCs
-                    }
+                    player: { ...prev.player, status: world.playerStatus, location: world.newLocation, inventory: newInv, stats: newStats },
+                    world: { ...prev.world, time: calculateNewTime(prev.world.time, world.timePassed), weather: world.currentWeather, activeEvents: world.worldEvents, npcs: npcs.npcs || prev.world.npcs }
                 };
             });
-        } catch (bgError) {
-            console.error("Background State Sync Failed", bgError);
         } finally {
             setIsSyncingState(false);
         }
       }
     } catch (error) {
-      console.error("Main Turn processing failed:", error);
-      const errorEntry: ChatEntry = { role: 'system', text: "Erro: Falha no núcleo narrativo.", type: 'debug' };
-      setGameState(prev => prev ? ({ ...prev, history: [...prev.history, errorEntry] }) : null);
+      console.error(error);
       setIsProcessing(false);
     }
   };
 
-  const resetGame = () => {
-    if (window.confirm("Deseja reiniciar a simulação?")) {
-      setGameState(null);
-      setSetupMode(true);
-    }
+  const resetGame = () => { 
+    // Removed confirm() here because App.tsx handles the UI confirmation.
+    setGameState(null); 
   };
+  
+  const restoreGame = (s: GameState) => setGameState(s);
 
-  const restoreGame = (savedState: GameState) => {
-    setGameState(savedState);
-    setSetupMode(false);
-  };
-
-  return {
-    gameState,
-    isProcessing,
-    isSyncingState,
-    setupMode,
-    startGame,
-    performAction,
-    resetGame,
-    restoreGame
-  };
+  return { gameState, isProcessing, isSyncingState, startGame, performAction, resetGame, restoreGame };
 };
 
-/**
- * Calculates new time by adding duration to current time.
- * Handles format: "DD/MM/YYYY HH:mm".
- */
 function calculateNewTime(currentTime: string, timePassed: string): string {
-    if (!timePassed || timePassed === "0 min" || timePassed === "0") return currentTime;
-
-    // 1. Parse Duration (Logic adapted to handle various AI outputs)
+    if (!currentTime || !timePassed) return currentTime;
     let minutesToAdd = 0;
-    const durationRegex = /(\d+)\s*(min|m|h|hora|hour|seg|s|dias|day)/i;
-    const match = timePassed.match(durationRegex);
-    
+    const match = timePassed.match(/(\d+)\s*(min|h|d)/i);
     if (match) {
-        const value = parseInt(match[1], 10);
+        const val = parseInt(match[1]);
         const unit = match[2].toLowerCase();
-        if (unit.startsWith('h')) {
-            minutesToAdd = value * 60;
-        } else if (unit.startsWith('d')) {
-            minutesToAdd = value * 24 * 60;
-        } else {
-            minutesToAdd = value; // Default to minutes
-        }
-    } else {
-        // Fallback for simple integers (assume minutes)
-        const parsedInt = parseInt(timePassed);
-        if (!isNaN(parsedInt)) minutesToAdd = parsedInt;
+        minutesToAdd = unit.startsWith('h') ? val * 60 : unit.startsWith('d') ? val * 1440 : val;
     }
+    if (currentTime.includes("Ciclo") || currentTime.includes("Era")) return currentTime; 
 
-    // 2. Parse Current Date
-    const [datePart, timePart] = currentTime.split(' ');
-    let dateObj: Date;
-
-    if (datePart && timePart) {
-        const [d, m, y] = datePart.split('/').map(Number);
-        const [h, min] = timePart.split(':').map(Number);
-        
-        if (!isNaN(d) && !isNaN(m) && !isNaN(y) && !isNaN(h) && !isNaN(min)) {
-             dateObj = new Date(y, m - 1, d, h, min);
-        } else {
-             dateObj = new Date(); 
-        }
-    } else {
-         dateObj = new Date();
+    try {
+        const [dPart, tPart] = currentTime.split(' ');
+        if (!dPart || !tPart) return currentTime;
+        const [d, m, y] = dPart.split('/').map(Number);
+        const [h, min] = tPart.split(':').map(Number);
+        const date = new Date(y, m - 1, d, h, min + minutesToAdd);
+        const pad = (n: number) => n.toString().padStart(2, '0');
+        return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    } catch(e) {
+        return currentTime;
     }
-
-    // 3. Add Time
-    dateObj.setMinutes(dateObj.getMinutes() + minutesToAdd);
-
-    // 4. Format Output (Strict DD/MM/YYYY HH:mm)
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    const dd = pad(dateObj.getDate());
-    const mo = pad(dateObj.getMonth() + 1);
-    const yyyy = dateObj.getFullYear();
-    const hh = pad(dateObj.getHours());
-    const mm = pad(dateObj.getMinutes());
-
-    return `${dd}/${mo}/${yyyy} ${hh}:${mm}`;
 }

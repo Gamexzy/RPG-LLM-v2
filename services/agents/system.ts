@@ -3,17 +3,43 @@ import { GameState } from "../../types";
 import { INVESTIGATION_INSTRUCTION, DEBUG_INSTRUCTION } from "../ai/prompts";
 import { generateContentWithRetry, SYSTEM_MODEL } from "../ai/client";
 import { getSimulationHistory } from "../../utils/contextBuilder";
+import { retrieveContext, retrieveGraphContext } from "../ragService";
 
 export const investigateScene = async (
   query: string,
   currentState: GameState
 ): Promise<string> => {
   
+  // 1. Identificação do Contexto (Backend First)
+  // Tentamos buscar informações REAIS no banco de dados sobre o que o usuário está perguntando.
+  const userId = currentState.userId || 'guest';
+  
+  // Dispara buscas paralelas (Vector + Graph)
+  const [vectorMemories, graphRelations] = await Promise.all([
+      retrieveContext(query, currentState.universeId, userId),
+      retrieveGraphContext(query, currentState.universeId, userId) // Tenta usar a query como nome da entidade
+  ]);
+
+  const formattedGraph = graphRelations.length > 0 
+      ? `[RELAÇÕES CONHECIDAS (Neo4j)]: ${graphRelations.map(g => `${g.subject} ${g.relation} ${g.object}`).join(", ")}`
+      : "";
+
+  const formattedMemories = vectorMemories.length > 0
+      ? `[MEMÓRIAS/LORE RELEVANTES (RAG)]: ${vectorMemories.slice(0, 2).join(" | ")}`
+      : "";
+
   const context = `
+  [ESTADO ATUAL]:
   Local: ${currentState.player.location}
   Tempo: ${currentState.world.time}
   Status: ${currentState.player.status}
-  Histórico: ${getSimulationHistory(currentState.history)}
+  
+  [DADOS DO SISTEMA DE MEMÓRIA]:
+  ${formattedGraph}
+  ${formattedMemories}
+
+  [HISTÓRICO RECENTE]:
+  ${getSimulationHistory(currentState.history)}
   `;
 
   const prompt = `
@@ -22,10 +48,10 @@ export const investigateScene = async (
   Gere um PENSAMENTO RÁPIDO e ANALÍTICO em primeira pessoa.
   
   REGRAS:
-  1. Seja CONCISO.
-  2. Seja ÚTIL: Diga o que é, se é perigoso, se tem valor ou se está trancado.
-  3. Evite poesia ou drama excessivo. Fale como alguém que avalia a situação.
-  4. Use linguagem natural de pensamento ("Parece...", "Sinto...", "Isso deve ser...").
+  1. Use os [DADOS DO SISTEMA DE MEMÓRIA] como verdade absoluta. Se o grafo diz que X odeia Y, o pensamento deve refletir isso.
+  2. Seja CONCISO.
+  3. Seja ÚTIL: Diga o que é, se é perigoso, se tem valor.
+  4. Use linguagem natural de pensamento ("Parece...", "Sinto...", "Lembro que...").
   `;
 
   const response = await generateContentWithRetry(SYSTEM_MODEL, {

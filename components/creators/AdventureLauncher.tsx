@@ -17,35 +17,68 @@ const AdventureLauncher: React.FC<AdventureLauncherProps> = ({ universes, charac
   const getCharacter = (id: string) => characters.find(c => c.id === id);
 
   const activeUniverse = selectedUniverse ? getUniverse(selectedUniverse) : null;
+  const activeCharacter = selectedCharacter ? getCharacter(selectedCharacter) : null;
 
   const handleStart = () => {
-    if (selectedUniverse && selectedCharacter) {
-      const u = getUniverse(selectedUniverse);
-      const c = getCharacter(selectedCharacter);
-      if (u && c) onStartAdventure(u, c);
+    if (activeUniverse && activeCharacter) {
+      onStartAdventure(activeUniverse, activeCharacter);
     }
   };
 
   return (
-    <div className="flex-1 flex flex-col p-6 bg-stone-950 animate-fade-in overflow-y-auto pb-24">
-      <div className="max-w-5xl w-full mx-auto space-y-8">
+    // FIX: Removido pb-24/pb-6 pois o GameLayout agora usa margin-bottom (mb-16) para proteger a área
+    <div className="flex-1 flex flex-col p-6 animate-fade-in overflow-y-auto md:overflow-hidden">
+      <div className="flex flex-col md:flex-row gap-8 md:gap-16 max-w-7xl w-full mx-auto h-full">
         
-        <header className="flex flex-col md:flex-row items-start md:items-end justify-between border-b border-stone-900 pb-4 gap-4">
-            <div>
-                <h2 className="text-4xl font-serif text-stone-200 tracking-tight">O Nexus</h2>
-                <p className="text-stone-600 text-xs uppercase tracking-widest mt-2">Escolha o Palco e o Ator. O destino decidirá o cenário inicial.</p>
-            </div>
-        </header>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 h-[500px]">
+        {/* ESQUERDA: Resumo e Ação */}
+        <div className="md:w-1/3 flex flex-col h-full max-h-full">
             
-             {/* COLUMN 1: UNIVERSE SELECTION (STAGE) */}
-             <div className="space-y-4 flex flex-col h-full border-r border-stone-900 pr-8">
-                <h3 className="text-amber-900 text-[10px] uppercase tracking-widest border-b border-stone-900 pb-2">1. Escolha o Palco (Universo)</h3>
-                <div className="space-y-3 flex-1 overflow-y-auto max-h-full custom-scrollbar pr-2">
+            {/* Área de Conteúdo Scrollável */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar md:pr-2 min-h-0">
+                <h2 className="text-4xl md:text-6xl font-serif text-stone-200 tracking-tight leading-none">O Nexus</h2>
+                <div className="h-px w-16 bg-amber-900/50 mt-4 mb-2"></div>
+                <p className="text-stone-500 text-xs uppercase tracking-widest mb-6">
+                    Início da Jornada
+                </p>
+                
+                <div className="space-y-6 mt-8 md:mt-12 mb-4">
+                     <div className={`p-4 border-l-2 transition-all ${activeUniverse ? 'border-amber-500 bg-stone-900/40' : 'border-stone-800'}`}>
+                         <span className="text-[10px] uppercase text-stone-600 block mb-1">Palco</span>
+                         <span className={`font-serif text-xl ${activeUniverse ? 'text-stone-200' : 'text-stone-700 italic'}`}>
+                             {activeUniverse ? activeUniverse.name : "Selecione um Universo"}
+                         </span>
+                     </div>
+                     <div className={`p-4 border-l-2 transition-all ${activeCharacter ? 'border-amber-500 bg-stone-900/40' : 'border-stone-800'}`}>
+                         <span className="text-[10px] uppercase text-stone-600 block mb-1">Ator</span>
+                         <span className={`font-serif text-xl ${activeCharacter ? 'text-stone-200' : 'text-stone-700 italic'}`}>
+                             {activeCharacter ? activeCharacter.name : "Selecione um Personagem"}
+                         </span>
+                     </div>
+                </div>
+            </div>
+
+            {/* Área do Botão Fixa no Rodapé da Coluna */}
+            <div className="mt-4 shrink-0 pt-4 border-t border-stone-800/30">
+                <button
+                    onClick={handleStart}
+                    disabled={!selectedUniverse || !selectedCharacter}
+                    className="w-full py-6 bg-stone-100 text-stone-950 font-serif tracking-widest uppercase hover:bg-amber-500 transition-colors disabled:opacity-20 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(255,255,255,0.1)] text-lg"
+                >
+                    Materializar
+                </button>
+            </div>
+        </div>
+
+        {/* DIREITA: Colunas de Seleção */}
+        <div className="md:w-2/3 md:border-l md:border-stone-800 md:pl-12 flex flex-col md:flex-row gap-8 md:h-full md:overflow-hidden">
+            
+             {/* COLUNA 1: UNIVERSOS */}
+             <div className="flex-1 flex flex-col h-[400px] md:h-full">
+                <h3 className="text-amber-900 text-[10px] uppercase tracking-widest border-b border-stone-900 pb-2 mb-4 shrink-0">Biblioteca de Mundos</h3>
+                <div className="space-y-3 flex-1 overflow-y-auto custom-scrollbar md:pr-2 min-h-0">
                     {universes.length === 0 && (
                         <div className="p-8 border border-dashed border-stone-800 text-center text-stone-600 text-xs italic">
-                            Nenhum palco construído.<br/>Crie um universo na biblioteca.
+                            Vazio.
                         </div>
                     )}
                     {universes.map(u => (
@@ -59,35 +92,25 @@ const AdventureLauncher: React.FC<AdventureLauncherProps> = ({ universes, charac
                             }`}
                         >
                             <div className="flex justify-between mb-1">
-                                <span className={`font-serif text-lg ${selectedUniverse === u.id ? 'text-stone-200' : 'text-stone-400'}`}>
+                                <span className={`font-serif text-base ${selectedUniverse === u.id ? 'text-stone-200' : 'text-stone-400'}`}>
                                     {u.name}
                                 </span>
-                                <span className="text-[9px] uppercase border border-stone-700 px-1 rounded text-stone-500">
-                                    {u.structure === 'star_cluster' ? 'Galáxia' : 'Mundo'}
-                                </span>
                             </div>
-                            <p className="text-stone-500 text-xs line-clamp-2">{u.description}</p>
-                            
-                            <div className="mt-3 flex gap-2 flex-wrap">
-                                {(u.chronicles && u.chronicles.length > 0) && (
-                                    <span className="text-[9px] bg-stone-950 text-cyan-600 border border-stone-800 px-1.5 py-0.5 rounded flex items-center gap-1">
-                                        ⏳ {u.chronicles.length} Eventos Históricos
-                                    </span>
-                                )}
-                            </div>
+                            <span className="text-[9px] uppercase border border-stone-800 px-1 rounded text-stone-500">
+                                {u.genre}
+                            </span>
                         </button>
                     ))}
                 </div>
             </div>
 
-            {/* COLUMN 2: CHARACTER SELECTION (ACTOR) */}
-            <div className="space-y-4 flex flex-col h-full pl-2">
-                <h3 className="text-amber-900 text-[10px] uppercase tracking-widest border-b border-stone-900 pb-2">2. Escale o Ator</h3>
-                
-                <div className="space-y-3 flex-1 overflow-y-auto max-h-full custom-scrollbar">
+            {/* COLUNA 2: PERSONAGENS */}
+            <div className="flex-1 flex flex-col h-[400px] md:h-full md:border-l md:border-stone-900 md:pl-8">
+                <h3 className="text-amber-900 text-[10px] uppercase tracking-widest border-b border-stone-900 pb-2 mb-4 shrink-0">Galeria de Atores</h3>
+                <div className="space-y-3 flex-1 overflow-y-auto custom-scrollbar md:pr-2 min-h-0">
                     {characters.length === 0 && (
                             <div className="p-4 text-stone-700 text-xs italic border border-dashed border-stone-900">
-                            Nenhum ator disponível.<br/>Crie um personagem.
+                            Vazio.
                             </div>
                     )}
                     {characters.map(c => (
@@ -101,44 +124,19 @@ const AdventureLauncher: React.FC<AdventureLauncherProps> = ({ universes, charac
                             }`}
                         >
                             <div className="flex justify-between mb-1">
-                                <span className={`font-serif text-lg ${selectedCharacter === c.id ? 'text-amber-500' : 'text-stone-300'}`}>
+                                <span className={`font-serif text-base ${selectedCharacter === c.id ? 'text-amber-500' : 'text-stone-300'}`}>
                                     {c.name}
                                 </span>
-                                {(c.adventuresPlayed || 0) > 0 && (
-                                    <span className="text-[9px] text-stone-500" title="Aventuras jogadas">
-                                    ↺ {c.adventuresPlayed}
-                                    </span>
-                                )}
                             </div>
-                            <div className="flex justify-between items-center mt-2">
-                                <span className="text-[10px] uppercase tracking-wider text-stone-500 border border-stone-800 px-2 rounded-full">
-                                    Papel: {c.archetype}
-                                </span>
-                            </div>
-                             <p className="text-stone-600 text-xs mt-2 line-clamp-2 italic">"{c.description}"</p>
+                            <span className="text-[9px] uppercase tracking-wider text-stone-500 border border-stone-800 px-2 rounded-full">
+                                {c.archetype}
+                            </span>
                         </button>
                     ))}
                 </div>
             </div>
 
         </div>
-
-        {/* START BUTTON */}
-        <div className="pt-8 border-t border-stone-900 text-center">
-            {activeUniverse && selectedCharacter && (
-                <div className="mb-4 text-xs text-stone-500 font-mono animate-fade-in">
-                    [CONFIGURAÇÃO]: {activeUniverse.name} :: {getCharacter(selectedCharacter)?.name} :: LOCALIZAÇÃO_AUTO
-                </div>
-            )}
-            <button
-                onClick={handleStart}
-                disabled={!selectedUniverse || !selectedCharacter}
-                className="px-16 py-5 bg-stone-100 text-stone-950 font-serif tracking-widest uppercase hover:bg-amber-500 transition-colors disabled:opacity-20 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(255,255,255,0.1)] text-lg"
-            >
-                Materializar
-            </button>
-        </div>
-
       </div>
     </div>
   );

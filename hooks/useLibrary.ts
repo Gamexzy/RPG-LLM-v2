@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { UniverseTemplate, CharacterTemplate, TimelineEvent, AdventureRecord } from '../types';
+import { fetchUserLibrary, syncUniverse, syncCharacter, syncAdventureMetadata } from '../services/ragService';
 
 const DEFAULT_UNIVERSES: UniverseTemplate[] = [
   {
@@ -61,7 +62,7 @@ export const useLibrary = (userId?: string) => {
   // Prefix keys with userId to isolate data
   const getKey = (base: string) => userId ? `${base}_${userId}` : null;
 
-  // Load when userId changes
+  // Load when userId changes (Hybrid Strategy: Local + Server)
   useEffect(() => {
     if (!userId) {
         setUniverses([]);
@@ -74,34 +75,46 @@ export const useLibrary = (userId?: string) => {
     const cKey = getKey('cronos_characters');
     const aKey = getKey('cronos_adventures');
 
-    if (uKey && cKey && aKey) {
-        const savedUniverses = localStorage.getItem(uKey);
-        const savedCharacters = localStorage.getItem(cKey);
-        const savedAdventures = localStorage.getItem(aKey);
+    const loadLocal = () => {
+        if (uKey && cKey && aKey) {
+            const savedUniverses = localStorage.getItem(uKey);
+            const savedCharacters = localStorage.getItem(cKey);
+            const savedAdventures = localStorage.getItem(aKey);
 
-        if (savedUniverses) {
-            setUniverses(JSON.parse(savedUniverses));
-        } else {
-            // Se novo usuário, carrega defaults e salva
-            const defaults = DEFAULT_UNIVERSES;
-            localStorage.setItem(uKey, JSON.stringify(defaults));
-            setUniverses(defaults);
-        }
+            if (savedUniverses) setUniverses(JSON.parse(savedUniverses));
+            else setUniverses(DEFAULT_UNIVERSES);
 
-        if (savedCharacters) {
-            setCharacters(JSON.parse(savedCharacters));
-        } else {
-            const defaults = DEFAULT_CHARACTERS;
-            localStorage.setItem(cKey, JSON.stringify(defaults));
-            setCharacters(defaults);
-        }
+            if (savedCharacters) setCharacters(JSON.parse(savedCharacters));
+            else setCharacters(DEFAULT_CHARACTERS);
 
-        if (savedAdventures) {
-            setAdventures(JSON.parse(savedAdventures));
-        } else {
-            setAdventures([]);
+            if (savedAdventures) setAdventures(JSON.parse(savedAdventures));
+            else setAdventures([]);
         }
-    }
+    };
+
+    // 1. Load Local first (Instant UI)
+    loadLocal();
+
+    // 2. Try Fetch from Server (Persistence)
+    fetchUserLibrary(userId).then(remoteLib => {
+        if (remoteLib) {
+            // Merge logic could be complex, for now, if server has data, we trust server over local for list completeness
+            // Or we just append. For simplicity, let's trust server if it returns non-empty arrays
+            if (remoteLib.universes?.length > 0) {
+                setUniverses(remoteLib.universes);
+                if(uKey) localStorage.setItem(uKey, JSON.stringify(remoteLib.universes));
+            }
+            if (remoteLib.characters?.length > 0) {
+                setCharacters(remoteLib.characters);
+                if(cKey) localStorage.setItem(cKey, JSON.stringify(remoteLib.characters));
+            }
+            if (remoteLib.adventures?.length > 0) {
+                setAdventures(remoteLib.adventures);
+                if(aKey) localStorage.setItem(aKey, JSON.stringify(remoteLib.adventures));
+            }
+        }
+    });
+
   }, [userId]);
 
   // Helpers de save internos
@@ -131,32 +144,40 @@ export const useLibrary = (userId?: string) => {
   const addUniverse = (template: Omit<UniverseTemplate, 'id' | 'createdAt'>) => {
     const newUni: UniverseTemplate = { ...template, id: crypto.randomUUID(), createdAt: Date.now() };
     saveU([...universes, newUni]);
+    // Sync to Backend
+    if (userId) syncUniverse(userId, newUni);
   };
 
   const evolveUniverse = (universeId: string, updates: any) => {
+    let targetUniverse: UniverseTemplate | null = null;
     const updatedList = universes.map(u => {
       if (u.id !== universeId) return u;
       
-      // Lógica simplificada de merge para não repetir o código todo aqui
-      // A lógica real está inalterada, apenas o setter muda
       const newTimeline = updates.newEvents ? updates.newEvents.map((e:string) => ({ year: 'Presente', event: e, era: 'Era do Jogador' })) : [];
       let updatedWorlds = u.worlds || [];
       if (updates.newWorld && !updatedWorlds.some((w:any) => w.name === updates.newWorld.name)) {
           updatedWorlds = [...updatedWorlds, updates.newWorld];
       }
-      return {
+      const updated = {
         ...u,
         knownTruths: [...(u.knownTruths || []), ...(updates.newTruths || [])], 
         chronicles: [...(u.chronicles || []), ...newTimeline], 
         worlds: updatedWorlds
       };
+      targetUniverse = updated;
+      return updated;
     });
     saveU(updatedList);
+    // Sync to Backend
+    if (userId && targetUniverse) syncUniverse(userId, targetUniverse);
   };
 
   const trackCharacterUsage = (characterId: string) => {
       const updatedList = characters.map(c => c.id === characterId ? { ...c, adventuresPlayed: (c.adventuresPlayed || 0) + 1 } : c);
       saveC(updatedList);
+      // Sync update
+      const updatedChar = updatedList.find(c => c.id === characterId);
+      if (userId && updatedChar) syncCharacter(userId, updatedChar);
   };
   
   const addAdventureRecord = (u: UniverseTemplate, c: CharacterTemplate) => {
@@ -169,6 +190,8 @@ export const useLibrary = (userId?: string) => {
           lastLocation: 'Início'
       };
       saveA([newRecord, ...adventures]);
+      // Sync metadata
+      if (userId) syncAdventureMetadata(userId, newRecord);
   };
 
   const deleteAdventureRecord = (id: string) => saveA(adventures.filter(a => a.id !== id));
@@ -177,6 +200,8 @@ export const useLibrary = (userId?: string) => {
   const addCharacter = (template: Omit<CharacterTemplate, 'id' | 'createdAt'>) => {
     const newChar: CharacterTemplate = { ...template, id: crypto.randomUUID(), createdAt: Date.now() };
     saveC([...characters, newChar]);
+    // Sync to Backend
+    if (userId) syncCharacter(userId, newChar);
   };
   const deleteCharacter = (id: string) => saveC(characters.filter(c => c.id !== id));
 

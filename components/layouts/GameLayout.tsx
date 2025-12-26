@@ -36,7 +36,11 @@ const GameLayout: React.FC<GameLayoutProps> = ({
     <div className="flex h-screen bg-stone-950 text-stone-200 overflow-hidden relative">
       
       {/* Main Content */}
-      <div className={`flex-1 flex flex-col min-w-0 relative transition-all duration-300 ${isSidebarOpen && isGameActive ? 'mr-0 md:mr-80' : 'mr-0'}`}>
+      {/* FIX: Adicionado 'pb-safe' e margem inferior condicional para reservar espaço para a BottomNav */}
+      <div className={`flex-1 flex flex-col min-w-0 relative transition-all duration-300 
+        ${isSidebarOpen && isGameActive ? 'mr-0 md:mr-80' : 'mr-0'} 
+        ${!isGameActive ? 'mb-16 md:mb-20' : ''}
+      `}>
         
         <GameHeader 
           gameState={gameState}

@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { loginUser, registerUser } from '../../services/ragService';
 
 interface LoginScreenProps {
   onLogin: (userId: string) => void;
@@ -8,6 +9,7 @@ interface LoginScreenProps {
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   
   const [formData, setFormData] = useState({
     firstName: '',
@@ -26,33 +28,63 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     setError(null); // Limpa erro ao digitar
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+    setLoading(true);
     
-    // Validação Básica
+    // Validação Básica Frontend
     if (isRegistering) {
         if (!formData.firstName || !formData.lastName || !formData.username || !formData.email || !formData.password) {
             setError("Todos os campos são obrigatórios.");
+            setLoading(false);
             return;
         }
         if (formData.password !== formData.confirmPassword) {
             setError("As senhas não coincidem.");
+            setLoading(false);
             return;
         }
     } else {
         if (!formData.username || !formData.password) {
             setError("Informe usuário/email e senha.");
+            setLoading(false);
             return;
         }
     }
 
-    // Tratamento do ID para uso no sistema (sanitização básica)
-    const safeId = formData.username.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-    
-    // Simula delay de rede
-    setTimeout(() => {
-        onLogin(safeId);
-    }, 500);
+    try {
+        let result;
+        if (isRegistering) {
+            // CALL BACKEND REGISTER
+            result = await registerUser({
+                username: formData.username,
+                email: formData.email,
+                password: formData.password,
+                first_name: formData.firstName,
+                last_name: formData.lastName
+            });
+        } else {
+            // CALL BACKEND LOGIN
+            result = await loginUser({
+                username: formData.username,
+                password: formData.password
+            });
+        }
+
+        // Se sucesso, o backend deve retornar o userId ou token
+        if (result && result.userId) {
+            onLogin(result.userId);
+        } else {
+            setError("Erro desconhecido na resposta do servidor.");
+        }
+
+    } catch (err: any) {
+        console.error(err);
+        setError(err.message || "Falha na conexão com o servidor.");
+    } finally {
+        setLoading(false);
+    }
   };
 
   const toggleMode = () => {
@@ -208,9 +240,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
                         <button 
                             type="submit"
-                            className="w-full py-4 mt-6 bg-amber-900/20 border border-amber-900/30 text-amber-500 hover:bg-amber-900/30 hover:border-amber-600 transition-all uppercase tracking-[0.2em] text-xs font-bold group relative overflow-hidden"
+                            disabled={loading}
+                            className={`w-full py-4 mt-6 bg-amber-900/20 border border-amber-900/30 text-amber-500 hover:bg-amber-900/30 hover:border-amber-600 transition-all uppercase tracking-[0.2em] text-xs font-bold group relative overflow-hidden ${loading ? 'opacity-50 cursor-wait' : ''}`}
                         >
-                            <span className="relative z-10">{isRegistering ? 'Registrar Conta' : 'Conectar'}</span>
+                            <span className="relative z-10">{loading ? 'Conectando...' : (isRegistering ? 'Registrar Conta' : 'Conectar')}</span>
                             <div className="absolute inset-0 bg-amber-600/10 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-500 ease-out"></div>
                         </button>
                     </form>
@@ -218,6 +251,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                     <div className="text-center md:text-left pt-4 mt-2">
                         <button 
                             onClick={toggleMode}
+                            disabled={loading}
                             className="text-stone-500 hover:text-amber-500 text-xs underline decoration-stone-800 hover:decoration-amber-500 underline-offset-4 transition-all"
                         >
                             {isRegistering 

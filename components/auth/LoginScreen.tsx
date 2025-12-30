@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { loginUser, registerUser } from '../../services/ragService';
+import React, { useState, useEffect } from 'react';
+import { loginUser, registerUser, getServerUrl, setServerUrl } from '../../services/ragService';
 
 interface LoginScreenProps {
   onLogin: (userId: string) => void;
@@ -10,6 +10,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  
+  // Settings State
+  const [showSettings, setShowSettings] = useState(false);
+  const [apiUrl, setApiUrl] = useState('');
+
+  // Load URL on mount
+  useEffect(() => {
+    setApiUrl(getServerUrl());
+  }, []);
   
   const [formData, setFormData] = useState({
     firstName: '',
@@ -26,6 +35,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       [e.target.name]: e.target.value
     });
     setError(null); // Limpa erro ao digitar
+  };
+
+  const handleSaveSettings = () => {
+    if (apiUrl.trim()) {
+        setServerUrl(apiUrl);
+        setShowSettings(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -81,7 +97,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
     } catch (err: any) {
         console.error(err);
-        setError(err.message || "Falha na conexão com o servidor.");
+        setError(err.message || "Falha na conexão com o servidor. Verifique a URL nas configurações.");
     } finally {
         setLoading(false);
     }
@@ -95,6 +111,61 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
   return (
     <div className="fixed inset-0 z-50 bg-stone-950 flex flex-col items-center justify-center font-sans overflow-y-auto py-10 px-4">
+        
+        {/* Settings Button */}
+        <div className="absolute top-4 right-4 z-50">
+            <button 
+                onClick={() => setShowSettings(true)}
+                className="p-2 text-stone-600 hover:text-amber-500 transition-colors bg-stone-900/50 rounded-full border border-stone-800 hover:border-amber-900"
+                title="Configurações de Rede"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.107-1.204l-.527-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+            </button>
+        </div>
+
+        {/* SETTINGS MODAL */}
+        {showSettings && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+                <div className="bg-stone-900 border border-stone-800 p-8 max-w-md w-full shadow-2xl rounded-sm">
+                    <h3 className="text-xl font-serif text-stone-200 mb-4 tracking-wide border-b border-stone-800 pb-2">
+                        Configuração de Rede
+                    </h3>
+                    <div className="space-y-4">
+                        <div className="space-y-1">
+                            <label className="text-[10px] uppercase tracking-widest text-stone-500 ml-1">URL da API (Ngrok)</label>
+                            <input 
+                                type="text" 
+                                value={apiUrl}
+                                onChange={(e) => setApiUrl(e.target.value)}
+                                className="w-full bg-stone-950 border border-stone-700 focus:border-amber-700 text-stone-300 px-4 py-2 outline-none text-sm font-mono"
+                                placeholder="https://xxxx.ngrok-free.app"
+                            />
+                            <p className="text-[10px] text-stone-600 mt-1">
+                                O endpoint do servidor Python (main.py) tunelado.
+                            </p>
+                        </div>
+                        <div className="flex gap-3 pt-2">
+                            <button 
+                                onClick={() => setShowSettings(false)}
+                                className="flex-1 py-3 border border-stone-700 text-stone-400 hover:bg-stone-800 hover:text-stone-200 uppercase tracking-wider text-xs"
+                            >
+                                Cancelar
+                            </button>
+                            <button 
+                                onClick={handleSaveSettings}
+                                className="flex-1 py-3 bg-amber-900/20 border border-amber-900/50 text-amber-500 hover:bg-amber-900/40 uppercase tracking-wider text-xs"
+                            >
+                                Salvar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
+
         {/* Animated Background Mesh */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_rgba(66,32,6,0.15)_0%,_rgba(12,10,9,1)_70%)] pointer-events-none"></div>
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-900/50 to-transparent"></div>

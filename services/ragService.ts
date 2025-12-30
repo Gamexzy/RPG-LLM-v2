@@ -3,7 +3,20 @@ import { GameState, GraphEdge, UniverseTemplate, CharacterTemplate, AdventureRec
 
 // --- RAG & TRIPLE STORE CLIENT SERVICE ---
 // Este serviço conecta o frontend React ao servidor Python Backend.
-const SERVER_URL = "https://6b10889bffdd.ngrok-free.app";
+
+const DEFAULT_URL = "https://6b10889bffdd.ngrok-free.app";
+const STORAGE_KEY = "cronos_api_url";
+
+export const getServerUrl = (): string => {
+  let url = localStorage.getItem(STORAGE_KEY) || DEFAULT_URL;
+  // Remove barra no final se houver para evitar duplicidade (ex: .app//auth)
+  return url.replace(/\/$/, "");
+};
+
+export const setServerUrl = (url: string) => {
+  const cleanUrl = url.trim().replace(/\/$/, "");
+  localStorage.setItem(STORAGE_KEY, cleanUrl);
+};
 
 export interface RagDocument {
   page_content: string;
@@ -38,7 +51,7 @@ export interface UnifiedIngestPayload {
 // --- AUTHENTICATION ENDPOINTS ---
 
 export const registerUser = async (userData: any) => {
-  const response = await fetch(`${SERVER_URL}/auth/register`, {
+  const response = await fetch(`${getServerUrl()}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(userData)
@@ -48,7 +61,7 @@ export const registerUser = async (userData: any) => {
 };
 
 export const loginUser = async (credentials: any) => {
-  const response = await fetch(`${SERVER_URL}/auth/login`, {
+  const response = await fetch(`${getServerUrl()}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(credentials)
@@ -61,7 +74,7 @@ export const loginUser = async (credentials: any) => {
 
 export const fetchUserLibrary = async (userId: string) => {
   try {
-    const response = await fetch(`${SERVER_URL}/library/${userId}`);
+    const response = await fetch(`${getServerUrl()}/library/${userId}`);
     if (!response.ok) return null;
     return await response.json(); // { universes: [], characters: [], adventures: [] }
   } catch (error) {
@@ -72,7 +85,7 @@ export const fetchUserLibrary = async (userId: string) => {
 
 export const syncUniverse = async (userId: string, universe: UniverseTemplate) => {
   try {
-    await fetch(`${SERVER_URL}/library/universe`, {
+    await fetch(`${getServerUrl()}/library/universe`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, ...universe })
@@ -82,7 +95,7 @@ export const syncUniverse = async (userId: string, universe: UniverseTemplate) =
 
 export const syncCharacter = async (userId: string, character: CharacterTemplate) => {
   try {
-    await fetch(`${SERVER_URL}/library/character`, {
+    await fetch(`${getServerUrl()}/library/character`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, ...character })
@@ -92,7 +105,7 @@ export const syncCharacter = async (userId: string, character: CharacterTemplate
 
 export const syncAdventureMetadata = async (userId: string, adventure: AdventureRecord) => {
   try {
-    await fetch(`${SERVER_URL}/library/adventure`, {
+    await fetch(`${getServerUrl()}/library/adventure`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, ...adventure })
@@ -107,7 +120,7 @@ export const syncAdventureMetadata = async (userId: string, adventure: Adventure
  */
 export const ingestUnifiedMemory = async (payload: UnifiedIngestPayload) => {
   try {
-    const response = await fetch(`${SERVER_URL}/ingest/unified`, {
+    const response = await fetch(`${getServerUrl()}/ingest/unified`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -126,7 +139,7 @@ export const ingestUnifiedMemory = async (payload: UnifiedIngestPayload) => {
  */
 export const retrieveContext = async (query: string, universeId: string, userId: string): Promise<string[]> => {
   try {
-    const response = await fetch(`${SERVER_URL}/query/vector`, {
+    const response = await fetch(`${getServerUrl()}/query/vector`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
@@ -151,7 +164,7 @@ export const retrieveContext = async (query: string, universeId: string, userId:
  */
 export const retrieveGraphContext = async (entityName: string, universeId: string, userId: string): Promise<GraphEdge[]> => {
   try {
-    const response = await fetch(`${SERVER_URL}/query/graph`, {
+    const response = await fetch(`${getServerUrl()}/query/graph`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
@@ -179,7 +192,7 @@ export const checkBackendHealth = async (): Promise<boolean> => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 2000);
     
-    const response = await fetch(`${SERVER_URL}/health`, { // Endpoint padrão de health check
+    const response = await fetch(`${getServerUrl()}/health`, { // Endpoint padrão de health check
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal

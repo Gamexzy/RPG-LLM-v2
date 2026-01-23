@@ -2,30 +2,25 @@
 import { GameState, NarrativeResponse, SimulationResponse, CharacterTemplate } from "../../types";
 import { NarrativeSchema, InitSchema } from "../ai/schemas";
 import { NARRATOR_INSTRUCTION } from "../ai/prompts";
-import { generateContentWithRetry, NARRATOR_MODEL, parseAIResponse } from "../ai/client";
+import { GeminiClient } from "../ai/client";
+import { AI_MODELS } from "../ai/config";
 import { getSimulationHistory, getKnowledgeContext } from "../../utils/contextBuilder";
 import { retrieveContext } from "../ragService";
 
-// The Narrator is now the FIRST step (The Leader).
-// It decides the outcome and writes the story immediately.
 export const synthesizeNarrative = async (
   action: string,
   currentState: GameState
 ): Promise<NarrativeResponse> => {
   
-  // 1. RAG RETRIEVAL (Tenta buscar memórias no servidor Python)
-  // Buscamos baseados na ação, localização E HISTÓRIA DO UNIVERSO + USUÁRIO
-  const ragQuery = `Action: ${action} | Location: ${currentState.player.location}`;
-  
-  // Adicione proteção se userId não existir (ex: saves antigos), use 'guest'
+  // 1. RAG Retrieval
   const userId = currentState.userId || 'guest';
+  const ragQuery = `Action: ${action} | Location: ${currentState.player.location}`;
   const longTermMemories = await retrieveContext(ragQuery, currentState.universeId, userId);
   
   const formattedMemories = longTermMemories.length > 0 
-    ? `[MEMÓRIAS E LENDAS RECUPERADAS DO BANCO DE DADOS DO UNIVERSO]:\n${longTermMemories.map(m => `- ${m}`).join('\n')}`
+    ? `[MEMÓRIAS E LENDAS RECUPERADAS]:\n${longTermMemories.map(m => `- ${m}`).join('\n')}`
     : "";
 
-  // 2. Filtra NPCs locais
   const presentNPCs = currentState.world.npcs
     .filter(npc => npc.location === currentState.player.location)
     .map(npc => `- ${npc.isNameKnown ? npc.name : npc.descriptor} (Ação: ${npc.action}, Status: ${npc.status})`)
@@ -37,80 +32,61 @@ export const synthesizeNarrative = async (
 
   ${formattedMemories}
 
-  [CONTEXTO DE CONHECIMENTO (Códex)]:
+  [CONTEXTO DE CONHECIMENTO]:
   ${getKnowledgeContext(currentState.knowledgeBase)}
   
-  [ESTADO ATUAL DO JOGADOR]:
+  [ESTADO ATUAL]:
   Local: ${currentState.player.location}
   Status: ${currentState.player.status}
   Inventário: ${currentState.player.inventory.join(", ")}
   Tempo: ${currentState.world.time}
 
-  [PESSOAS PRESENTES NESTE LOCAL (${currentState.player.location})]:
+  [PESSOAS PRESENTES]:
   ${presentNPCs || "Ninguém visível."}
   `;
 
   const prompt = `
   AÇÃO DO JOGADOR: "${action}"
 
-  TAREFA DE ESCRITA:
-  1. Atue como Mestre de Jogo. Decida o resultado lógico da ação.
-  2. Use as [MEMÓRIAS E LENDAS RECUPERADAS] para manter a consistência histórica do universo. Se o jogador encontrar uma estátua descrita no RAG, descreva-a conforme os dados recuperados.
-  3. Escreva a resposta narrativa em 2ª pessoa usando as tags [[DIALOGUE:...]] para falas.
-  4. Se ocorrer algo EPICO que muda a história do mundo, adicione ao campo 'canonicalEvents'.
+  TAREFA:
+  1. Atue como Mestre de Jogo. Decida o resultado lógico.
+  2. Use memórias recuperadas para consistência.
+  3. Narrativa em 2ª pessoa. Use [[DIALOGUE: Nome | Instrução]] para falas.
+  4. Registre eventos históricos em 'canonicalEvents'.
   `;
 
-  const response = await generateContentWithRetry(NARRATOR_MODEL, {
-    contents: context + "\n" + prompt,
-    config: {
-      systemInstruction: NARRATOR_INSTRUCTION,
-      responseMimeType: "application/json",
-      responseSchema: NarrativeSchema,
-    }
-  });
-
-  return parseAIResponse<NarrativeResponse>(response.text);
+  // Usa o modelo CREATIVE (Pro) para melhor qualidade narrativa
+  return GeminiClient.generateStructured<NarrativeResponse>(
+    AI_MODELS.CREATIVE,
+    context + "\n" + prompt,
+    NarrativeSchema,
+    NARRATOR_INSTRUCTION
+  );
 };
 
 export const initializeGameSession = async (character: CharacterTemplate, setting: string, universeId: string, universeName: string, userId: string): Promise<SimulationResponse> => {
-  
-  // No início, buscamos Lendas Gerais do Universo específico para dar contexto
   const ragQuery = `Overview history legends of universe ${universeName}`;
   const loreContext = await retrieveContext(ragQuery, universeId, userId);
 
   const formattedLore = loreContext.length > 0 
-    ? `[LENDAS E HISTÓRIA DO UNIVERSO (CONTEXTO RAG)]:\n${loreContext.map(m => `- ${m}`).join('\n')}`
+    ? `[LENDAS DO UNIVERSO]:\n${loreContext.map(m => `- ${m}`).join('\n')}`
     : "";
 
   const prompt = `
   INICIAR SIMULAÇÃO.
-  
-  [CONTAINER / BANCO DE DADOS]:
   Universo: ${universeName} (ID: ${universeId})
-  Cenário Inicial da Aventura: ${setting}
-
-  [ALMA / ATOR]:
-  Nome: ${character.name}
-  Arquétipo: ${character.archetype}
-  Backstory/Essência (Imutável): ${character.description}
+  Cenário: ${setting}
+  Ator: ${character.name} (${character.archetype}) - ${character.description}
   
   ${formattedLore}
 
-  Gere:
-  1. Uma DATA e HORA inicial.
-  2. A narrativa inicial. Incorpore elementos das [LENDAS] se apropriado, mas foque na materialização do personagem neste cenário.
-  3. O estado inicial do mundo.
-  4. Os NPCs iniciais.
+  Gere: Data inicial, Narrativa inicial, Estado do mundo e NPCs iniciais.
   `;
 
-  const response = await generateContentWithRetry(NARRATOR_MODEL, {
-    contents: prompt,
-    config: {
-      systemInstruction: NARRATOR_INSTRUCTION + "\nVocê está criando o ESTADO INICIAL de uma nova aventura. Use a Identidade do personagem para moldar como ele percebe o mundo.",
-      responseMimeType: "application/json",
-      responseSchema: InitSchema,
-    }
-  }, 6, 3000);
-
-  return parseAIResponse<SimulationResponse>(response.text);
+  return GeminiClient.generateStructured<SimulationResponse>(
+    AI_MODELS.CREATIVE,
+    prompt,
+    InitSchema,
+    NARRATOR_INSTRUCTION + "\nESTADO INICIAL: Use a Identidade do personagem para moldar a percepção inicial."
+  );
 };

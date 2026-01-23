@@ -2,7 +2,8 @@
 import { GameState, WorldUpdate } from "../../types";
 import { WorldEngineSchema } from "../ai/schemas";
 import { WORLD_ENGINE_INSTRUCTION } from "../ai/prompts";
-import { generateContentWithRetry, WORLD_MODEL, parseAIResponse } from "../ai/client";
+import { GeminiClient } from "../ai/client";
+import { AI_MODELS } from "../ai/config";
 
 export const runWorldSimulation = async (
   action: string,
@@ -20,29 +21,17 @@ export const runWorldSimulation = async (
   `;
 
   const prompt = `
-  [AÇÃO DO JOGADOR]: "${action}"
-  
-  [NARRATIVA GERADA (A VERDADE)]: 
-  "${narrative}"
+  [AÇÃO]: "${action}"
+  [NARRATIVA (VERDADE)]: "${narrative}"
 
-  TAREFA:
-  Analise a narrativa acima e extraia as atualizações de estado para manter o JSON sincronizado com o texto.
-  1. Quanto tempo passou na história?
-  2. O jogador mudou de local no texto?
-  3. O jogador pegou/usou itens citados no texto?
-  4. Qual o estado físico do jogador após essa narrativa?
-  
-  Retorne apenas o JSON de atualização.
+  TAREFA: Extraia atualizações de estado (Tempo, Local, Inventário, Status) para sincronizar o JSON com o texto.
   `;
 
-  const response = await generateContentWithRetry(WORLD_MODEL, {
-    contents: context + "\n" + prompt,
-    config: {
-      systemInstruction: WORLD_ENGINE_INSTRUCTION,
-      responseMimeType: "application/json",
-      responseSchema: WorldEngineSchema,
-    }
-  });
-
-  return parseAIResponse<WorldUpdate>(response.text);
+  // Usa modelo FAST (Flash) pois é uma tarefa lógica de extração
+  return GeminiClient.generateStructured<WorldUpdate>(
+    AI_MODELS.FAST,
+    context + "\n" + prompt,
+    WorldEngineSchema,
+    WORLD_ENGINE_INSTRUCTION
+  );
 };

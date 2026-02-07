@@ -123,6 +123,7 @@ export interface PlayerStats {
 }
 
 export interface GameState {
+  adventureId?: string; // [NOVO] Link para o registro da biblioteca
   universeId: string;
   userId?: string;
 
@@ -211,4 +212,15 @@ export interface SimulationResponse extends NarrativeResponse {
   worldUpdate: WorldUpdate;
   npcSimulation: NPCEntity[];
   initialTime?: string;
+}
+
+// [NEW] Unified Analyst Response
+export interface AnalystResponse {
+    worldUpdate: WorldUpdate;   // SQLite
+    graphEdges: GraphEdge[];    // Neo4j
+    memoryMetadata: {           // ChromaDB (Optimization)
+        keywords: string[];
+        summary: string;
+        importance: 'low' | 'medium' | 'high' | 'critical';
+    };
 }

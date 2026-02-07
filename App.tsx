@@ -35,7 +35,7 @@ function App() {
       activeTab={computed.activeTab}
       onToggleSidebar={() => actions.setIsSidebarOpen(!state.isSidebarOpen)}
       onReset={actions.handleExitToHub}
-      onSave={() => actions.saveGame(state.gameState)}
+      onSave={actions.saveGame}
       onLoad={actions.handleLoadGame}
       onTabChange={actions.handleTabChange}
     >
@@ -52,11 +52,20 @@ function App() {
       )}
 
       {state.currentView === 'ADVENTURE_LIST' && (
-        <AdventureList onLoadGame={actions.handleLoadGame} />
+        <AdventureList 
+            adventures={state.adventures}
+            onDelete={actions.deleteAdventureRecord}
+            onLoadGame={actions.handleLoadGame} 
+            onResumeAdventure={actions.handleResumeAdventure} 
+        />
       )}
 
       {state.currentView === 'UNIVERSE_LIST' && (
-        <UniverseList onCreate={() => actions.setCurrentView('UNIVERSE_CREATOR')} />
+        <UniverseList 
+            universes={state.universes}
+            onDelete={actions.deleteUniverse}
+            onCreate={() => actions.setCurrentView('UNIVERSE_CREATOR')} 
+        />
       )}
       {state.currentView === 'UNIVERSE_CREATOR' && (
         <UniverseCreator 
@@ -66,7 +75,11 @@ function App() {
       )}
 
       {state.currentView === 'CHARACTER_LIST' && (
-        <CharacterList onCreate={() => actions.setCurrentView('CHARACTER_CREATOR')} />
+        <CharacterList 
+            characters={state.characters}
+            onDelete={actions.deleteCharacter}
+            onCreate={() => actions.setCurrentView('CHARACTER_CREATOR')} 
+        />
       )}
       {state.currentView === 'CHARACTER_CREATOR' && (
         <CharacterCreator 
@@ -80,7 +93,7 @@ function App() {
             userId={state.userId}
             backendStatus={state.backendStatus}
             onRestoreDefaults={() => { if(confirm('Restaurar templates?')) { actions.restoreDefaults(); alert('Restaurado!'); window.location.reload(); } }}
-            onFactoryReset={() => { if(confirm('Limpar TUDO?')) { localStorage.clear(); window.location.reload(); } }}
+            onFactoryReset={actions.handleFactoryReset}
             onLogout={actions.handleLogout}
          />
       )}
@@ -89,6 +102,7 @@ function App() {
         <GameScreen 
           gameState={state.gameState}
           isProcessing={state.isProcessing}
+          isSyncingState={state.isSyncingState} // [NEW] Prop Passed
           isInvestigationMode={state.isInvestigationMode}
           onPerformAction={actions.performAction}
           onToggleMode={() => actions.setIsInvestigationMode(!state.isInvestigationMode)}

@@ -3,16 +3,33 @@ import React, { useState } from 'react';
 import { CharacterTemplate } from '../../types';
 
 interface CharacterCreatorProps {
-  onSave: (template: Omit<CharacterTemplate, 'id' | 'createdAt'>) => void;
+  // [FIX] Explicitly omit userId as it is injected by the controller
+  onSave: (template: Omit<CharacterTemplate, 'id' | 'createdAt' | 'userId'>) => void;
   onCancel: () => void;
 }
 
 const CharacterCreator: React.FC<CharacterCreatorProps> = ({ onSave, onCancel }) => {
-  const [formData, setFormData] = useState<Partial<CharacterTemplate>>({ name: '', description: '', archetype: '' });
+  const [formData, setFormData] = useState<Partial<CharacterTemplate>>({ 
+      name: '', 
+      description: '', 
+      archetype: '' 
+  });
 
   const handleSave = () => {
+      // Basic validation
       if (!formData.name || !formData.archetype) return;
-      onSave(formData as Omit<CharacterTemplate, 'id' | 'createdAt'>);
+
+      // Construct the payload safely
+      const payload: Omit<CharacterTemplate, 'id' | 'createdAt' | 'userId'> = {
+          name: formData.name,
+          description: formData.description || "", // Guarantee string
+          archetype: formData.archetype,
+          adventuresPlayed: 0, // Reset for new character
+          // Include any other properties if needed
+          image: formData.image
+      };
+
+      onSave(payload);
   };
 
   return (
@@ -20,7 +37,6 @@ const CharacterCreator: React.FC<CharacterCreatorProps> = ({ onSave, onCancel })
       <div className="flex flex-col md:flex-row gap-8 md:gap-16 max-w-6xl w-full mx-auto">
         
          {/* ESQUERDA: Cabeçalho e Ações */}
-         {/* FIX: Mudado para md:sticky para evitar sobreposição mobile */}
          <div className="md:w-1/3 flex flex-col md:justify-between md:sticky md:top-0 md:h-[calc(100vh-180px)]">
              <div>
                 <h2 className="text-3xl md:text-5xl font-serif text-stone-200 tracking-tight leading-none">Almas</h2>

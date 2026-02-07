@@ -11,6 +11,7 @@ interface SettingsScreenProps {
 
 const SettingsScreen: React.FC<SettingsScreenProps> = ({ backendStatus, onRestoreDefaults, onFactoryReset, userId, onLogout }) => {
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
 
   const handleLogoutClick = () => {
     if (confirmLogout) {
@@ -19,6 +20,15 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ backendStatus, onRestor
         setConfirmLogout(true);
         // Reseta o estado de confirmação após 3 segundos se o usuário não confirmar
         setTimeout(() => setConfirmLogout(false), 3000);
+    }
+  };
+
+  const handleResetClick = () => {
+    if (confirmReset) {
+        onFactoryReset();
+    } else {
+        setConfirmReset(true);
+        setTimeout(() => setConfirmReset(false), 3000);
     }
   };
 
@@ -116,8 +126,15 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ backendStatus, onRestor
                         <button onClick={onRestoreDefaults} className="text-stone-400 hover:text-amber-500 text-xs border border-stone-800 hover:border-amber-900 p-3 transition-colors text-left">
                             Restaurar Templates
                         </button>
-                        <button onClick={onFactoryReset} className="text-stone-400 hover:text-red-500 text-xs border border-stone-800 hover:border-red-900 p-3 transition-colors text-left">
-                            Factory Reset (Limpar Cache)
+                        <button 
+                            onClick={handleResetClick} 
+                            className={`text-xs border p-3 transition-colors text-left ${
+                                confirmReset 
+                                ? 'bg-red-900/20 border-red-500 text-red-500 font-bold' 
+                                : 'border-stone-800 text-stone-400 hover:text-red-500 hover:border-red-900'
+                            }`}
+                        >
+                            {confirmReset ? 'CONFIRMAR RESTAURAÇÃO DE FÁBRICA?' : 'Factory Reset (Limpar Cache)'}
                         </button>
                     </div>
                 </div>

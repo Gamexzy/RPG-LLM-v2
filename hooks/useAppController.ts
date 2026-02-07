@@ -26,11 +26,25 @@ export const useAppController = () => {
   }, []);
 
   // Library & Persistence (Depende do userId)
-  const { universes, characters, addUniverse, addCharacter, restoreDefaults, evolveUniverse, trackCharacterUsage, addAdventureRecord } = useLibrary(userId || undefined);
-  const { saveGame, parseSaveFile } = usePersistence();
+  const { 
+      universes, 
+      characters, 
+      adventures,
+      addUniverse, 
+      addCharacter, 
+      restoreDefaults, 
+      evolveUniverse, 
+      trackCharacterUsage, 
+      addAdventureRecord,
+      deleteAdventureRecord,
+      deleteUniverse,
+      deleteCharacter
+  } = useLibrary(userId || undefined);
+  
+  const { saveGameToFile, saveToSlot, loadFromSlot, hasSlot, parseSaveFile } = usePersistence();
 
   // Game Engine
-  const { gameState, isProcessing, startGame, performAction, resetGame, restoreGame } = useGameEngine(evolveUniverse);
+  const { gameState, isProcessing, isSyncingState, startGame, performAction, resetGame, restoreGame } = useGameEngine(evolveUniverse);
 
   // --- Effects ---
 
@@ -59,25 +73,25 @@ export const useAppController = () => {
   };
 
   const handleLogout = () => {
-      // Removemos o window.confirm daqui para tratar na UI (UX melhor)
       localStorage.removeItem('cronos_session_user');
-      
-      // Reset total do estado do jogo
       resetGame();
       setIsSidebarOpen(false);
-      
-      // Mudança de view e usuário
       setCurrentView('ADVENTURE_LAUNCHER');
       setUserId(null);
   };
 
   // --- Handlers ---
 
+  const handleFactoryReset = () => {
+    localStorage.clear();
+    window.location.reload();
+  };
+
   const handleStartAdventure = (u: UniverseTemplate, c: CharacterTemplate) => {
     if (!userId) return;
 
     trackCharacterUsage(c.id);
-    addAdventureRecord(u, c);
+    const adventureId = addAdventureRecord(u, c); // Get the ID
 
     const physicsBlock = u.physics && u.physics.length > 0 ? `LEIS DA REALIDADE (Imutáveis):\n${u.physics.map(p=>`- ${p}`).join('\n')}` : '';
     const truthsBlock = u.knownTruths && u.knownTruths.length > 0 ? `VERDADES DESCOBERTAS (Conhecimento Acumulado):\n${u.knownTruths.map(t=>`- ${t}`).join('\n')}` : '';
@@ -110,9 +124,22 @@ export const useAppController = () => {
       ---
     `;
     
-    // Pass userId to startGame
-    startGame(c, fullSettingContext, u.id, u.name, userId);
+    startGame(c, fullSettingContext, u.id, u.name, userId, adventureId);
     setCurrentView('GAME');
+  };
+
+  const handleResumeAdventure = (adventureId: string) => {
+    if (hasSlot(adventureId)) {
+        const savedState = loadFromSlot(adventureId);
+        if (savedState) {
+            restoreGame(savedState);
+            setCurrentView('GAME');
+        } else {
+            alert("Erro ao ler dados do slot local. Tente carregar o arquivo JSON.");
+        }
+    } else {
+        alert("Nenhum save local encontrado para esta aventura. Por favor, carregue o arquivo .JSON.");
+    }
   };
 
   const handleLoadGame = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -121,6 +148,7 @@ export const useAppController = () => {
     try {
       const loadedState = await parseSaveFile(file);
       restoreGame(loadedState);
+      if(loadedState.adventureId) saveToSlot(loadedState.adventureId, loadedState);
       setCurrentView('GAME');
     } catch (err) {
       console.error(err);
@@ -131,6 +159,13 @@ export const useAppController = () => {
   const handleExitToHub = () => {
     resetGame();
     setCurrentView('ADVENTURE_LAUNCHER');
+  };
+
+  const handleManualSave = () => {
+      saveGameToFile(gameState);
+      if (gameState && gameState.adventureId) {
+          saveToSlot(gameState.adventureId, gameState);
+      }
   };
 
   const getActiveTab = (): NavTab => {
@@ -161,8 +196,10 @@ export const useAppController = () => {
       backendStatus,
       gameState,
       isProcessing,
+      isSyncingState, // [NEW] Exposed for UI feedback
       universes,
-      characters
+      characters,
+      adventures
     },
     actions: {
       setHasApiKey,
@@ -173,13 +210,18 @@ export const useAppController = () => {
       addCharacter,
       restoreDefaults,
       performAction,
-      saveGame,
+      saveGame: handleManualSave,
       handleStartAdventure,
+      handleResumeAdventure,
       handleLoadGame,
       handleExitToHub,
       handleTabChange,
       handleLogin,
-      handleLogout
+      handleLogout,
+      handleFactoryReset,
+      deleteAdventureRecord,
+      deleteUniverse,
+      deleteCharacter
     },
     computed: {
       activeTab: getActiveTab()

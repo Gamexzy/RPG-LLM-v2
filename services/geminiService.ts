@@ -2,7 +2,7 @@
 import { GameState, SimulationResponse, NarrativeResponse, WorldUpdate, NPCBehaviorResponse, CharacterTemplate, GraphEdge } from "../types";
 import { synthesizeNarrative, initializeGameSession } from "./agents/narrator";
 import { runNPCBehaviorEngine } from "./agents/npc";
-import { runWorldSimulation } from "./agents/world";
+import { runAnalyst } from "./agents/analyst"; // [NEW] Unified Agent
 import { investigateScene, summarizeMemory, debugSimulation } from "./agents/system";
 import { resolveDialogueTags } from "./agents/dialogue";
 import { ingestUnifiedMemory, UnifiedIngestPayload } from "./ragService";
@@ -34,17 +34,21 @@ export const synchronizeState = async (
   action: string,
   narrative: string,
   currentState: GameState,
-  narrativeResponse?: NarrativeResponse // Passed to get graph data
+  narrativeResponse?: NarrativeResponse 
 ): Promise<{ world: WorldUpdate, npcs: NPCBehaviorResponse }> => {
   
-  // Parallel execution of state updaters
-  const [worldRes, npcRes] = await Promise.all([
-    runWorldSimulation(action, narrative, currentState),
+  // Parallel execution: Analyst (DBs) + NPC Engine (Behavior)
+  const [analystRes, npcRes] = await Promise.all([
+    runAnalyst(action, narrative, currentState),
     runNPCBehaviorEngine(currentState, action, narrative)
   ]);
 
+  const worldRes = analystRes.worldUpdate;
+  const graphEdges = analystRes.graphEdges || [];
+  const memoryMeta = analystRes.memoryMetadata;
+
   // --- TRIPLE STORE INGESTION ---
-  if (narrativeResponse && currentState.userId) {
+  if (currentState.userId) {
       
       // Calculate snapshot of inventory for logs
       let currentInventory = [...currentState.player.inventory];
@@ -61,11 +65,14 @@ export const synchronizeState = async (
           turnId: currentState.history.length + 1,
           timestamp: currentState.world.time, 
           
-          // 1. Vector (Chroma)
+          // 1. Vector (Chroma) - Enhanced with Analyst Metadata
           vectorData: {
               text: `[ACTION]: ${action}\n[RESULT]: ${narrative}`,
               type: 'turn',
-              location: worldRes.newLocation
+              location: worldRes.newLocation,
+              keywords: memoryMeta?.keywords,
+              summary: memoryMeta?.summary,
+              importance: memoryMeta?.importance
           },
           
           // 2. SQL (Logs)
@@ -80,19 +87,25 @@ export const synchronizeState = async (
           },
 
           // 3. Graph (Neo4j)
-          graphData: narrativeResponse.graphUpdates || []
+          graphData: graphEdges
       };
 
       // Fire and forget
       ingestUnifiedMemory(payload);
 
-      // Handle specific Lore Canonical Events
-      if (narrativeResponse.canonicalEvents && narrativeResponse.canonicalEvents.length > 0) {
+      // Handle specific Lore Canonical Events (Important for history)
+      if (narrativeResponse && narrativeResponse.canonicalEvents && narrativeResponse.canonicalEvents.length > 0) {
           narrativeResponse.canonicalEvents.forEach(event => {
              const lorePayload: UnifiedIngestPayload = {
                  ...payload,
-                 vectorData: { ...payload.vectorData, text: event, type: 'lore' },
-                 graphData: [] 
+                 vectorData: { 
+                     ...payload.vectorData, 
+                     text: event, 
+                     type: 'lore', 
+                     summary: event,
+                     importance: 'critical' 
+                 },
+                 graphData: [] // Lore usually doesn't have immediate graph edges unless specified
              };
              ingestUnifiedMemory(lorePayload);
           });
@@ -158,7 +171,7 @@ export const initializeGame = async (character: CharacterTemplate, setting: stri
     }
   ];
 
-  // Merge with AI generated updates
+  // Merge with AI generated updates (if any from intro schema)
   const initialGraphData = [...forcedGraphUpdates, ...(rawResponse.graphUpdates || [])];
 
   // Ingest initial LORE if generated
@@ -170,7 +183,9 @@ export const initializeGame = async (character: CharacterTemplate, setting: stri
       vectorData: {
           text: finalNarrativeText,
           type: 'intro',
-          location: "Start"
+          location: "Start",
+          summary: "Início da simulação.",
+          importance: "high"
       },
       sqlData: {
           playerStatus: "Healthy",

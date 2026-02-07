@@ -1,7 +1,16 @@
 
 import { useState, useEffect } from 'react';
-import { UniverseTemplate, CharacterTemplate, TimelineEvent, AdventureRecord } from '../types';
+import { UniverseTemplate, CharacterTemplate, TimelineEvent, AdventureRecord, PlayerStats } from '../types';
 import { fetchUserLibrary, syncUniverse, syncCharacter, syncAdventureMetadata } from '../services/ragService';
+
+const DEFAULT_STATS: PlayerStats = {
+  strength: 10,
+  agility: 10,
+  intelligence: 10,
+  spirit: 10,
+  health: 100,
+  maxHealth: 100
+};
 
 const DEFAULT_UNIVERSES: UniverseTemplate[] = [
   {
@@ -51,6 +60,7 @@ const DEFAULT_CHARACTERS: CharacterTemplate[] = [
     name: 'Kael',
     description: 'Um ator focado em papéis de sobrevivência.',
     archetype: 'O Sobrevivente',
+    stats: DEFAULT_STATS,
     adventuresPlayed: 1,
     createdAt: 1715420000000
   }
@@ -99,10 +109,9 @@ export const useLibrary = (userId?: string) => {
     loadLocal();
 
     // 2. Try Fetch from Server (Persistence)
+    // Only update if server has data to prevent overwriting local work with empty server state on new accounts
     fetchUserLibrary(userId).then(remoteLib => {
         if (remoteLib) {
-            // Merge logic could be complex, for now, if server has data, we trust server over local for list completeness
-            // Or we just append. For simplicity, let's trust server if it returns non-empty arrays
             if (remoteLib.universes?.length > 0) {
                 setUniverses(remoteLib.universes);
                 if(uKey) localStorage.setItem(uKey, JSON.stringify(remoteLib.universes));
@@ -183,10 +192,11 @@ export const useLibrary = (userId?: string) => {
       if (userId && updatedChar) syncCharacter(userId, updatedChar);
   };
   
-  const addAdventureRecord = (u: UniverseTemplate, c: CharacterTemplate) => {
-      if (!userId) return;
+  const addAdventureRecord = (u: UniverseTemplate, c: CharacterTemplate): string => {
+      if (!userId) return "";
+      const id = crypto.randomUUID();
       const newRecord: AdventureRecord = {
-          id: crypto.randomUUID(),
+          id: id,
           userId,
           universeId: u.id,
           characterId: c.id,
@@ -203,17 +213,32 @@ export const useLibrary = (userId?: string) => {
       saveA([newRecord, ...adventures]);
       // Sync metadata
       syncAdventureMetadata(userId, newRecord);
+      return id;
   };
 
   const deleteAdventureRecord = (id: string) => saveA(adventures.filter(a => a.id !== id));
   const deleteUniverse = (id: string) => saveU(universes.filter(u => u.id !== id));
   
   const addCharacter = (template: Omit<CharacterTemplate, 'id' | 'createdAt' | 'userId'>) => {
-    if (!userId) return;
-    const newChar: CharacterTemplate = { ...template, id: crypto.randomUUID(), userId, createdAt: Date.now() };
+    if (!userId) {
+        console.error("Tentativa de adicionar personagem sem usuário logado.");
+        return;
+    }
+    
+    // [FIX] Injeta Stats Padrão para garantir validação do Backend
+    const newChar: CharacterTemplate = { 
+        ...template,
+        id: crypto.randomUUID(), 
+        userId, 
+        createdAt: Date.now(),
+        stats: template.stats || DEFAULT_STATS,
+        adventuresPlayed: template.adventuresPlayed || 0
+    };
+
     saveC([...characters, newChar]);
     syncCharacter(userId, newChar);
   };
+  
   const deleteCharacter = (id: string) => saveC(characters.filter(c => c.id !== id));
 
   const restoreDefaults = () => {

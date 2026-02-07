@@ -1,8 +1,9 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { GameState, ChatEntry, PlayerStats, CharacterTemplate } from '../types';
 import { initializeGame, generateStory, synchronizeState, summarizeMemory, investigateScene, debugSimulation } from '../services/geminiService';
 import { mergeKnowledge } from '../utils/knowledgeUtils';
+import { usePersistence } from './usePersistence';
 
 const MEMORY_THRESHOLD = 8;
 
@@ -15,13 +16,28 @@ const DEFAULT_STATS: PlayerStats = {
   maxHealth: 100
 };
 
-// Update signature to accept the evolver function
 export const useGameEngine = (evolveUniverse?: (id: string, updates: any) => void) => {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSyncingState, setIsSyncingState] = useState(false);
+  
+  const { saveToSlot } = usePersistence();
 
-  const startGame = async (character: CharacterTemplate, setting: string, universeId: string, universeName: string, userId: string) => {
+  // Auto-Save Effect: Sempre que o gameState mudar e não estiver processando, salva no slot
+  useEffect(() => {
+      if (gameState && gameState.adventureId && !isProcessing && !isSyncingState) {
+          saveToSlot(gameState.adventureId, gameState);
+      }
+  }, [gameState, isProcessing, isSyncingState]);
+
+  const startGame = async (
+      character: CharacterTemplate, 
+      setting: string, 
+      universeId: string, 
+      universeName: string, 
+      userId: string,
+      adventureId: string // [NOVO] ID Obrigatório para persistência
+    ) => {
     setIsProcessing(true);
     try {
       const sim = await initializeGame(character, setting, universeId, universeName, userId);
@@ -40,13 +56,14 @@ export const useGameEngine = (evolveUniverse?: (id: string, updates: any) => voi
         quests: []
       }, sim.knowledgeUpdate);
 
-      setGameState({
+      const newState: GameState = {
+        adventureId: adventureId,
         userId: userId,
         universeId: universeId,
         player: {
-          sourceId: character.id, // THE LINK TO IDENTITY
+          sourceId: character.id,
           name: character.name,
-          description: character.description, // Initial state description matches template
+          description: character.description,
           inventory: sim.worldUpdate?.inventoryUpdates?.added || [],
           status: sim.worldUpdate?.playerStatus || "Saudável",
           location: sim.worldUpdate?.newLocation || "Desconhecido",
@@ -61,7 +78,12 @@ export const useGameEngine = (evolveUniverse?: (id: string, updates: any) => voi
         knowledgeBase: initialKB,
         summary: "Início da jornada.",
         history: [initialEntry]
-      });
+      };
+
+      setGameState(newState);
+      // Force immediate save
+      saveToSlot(adventureId, newState);
+
     } catch (error) {
       console.error(error);
       alert("Falha na conexão neural.");
@@ -71,7 +93,10 @@ export const useGameEngine = (evolveUniverse?: (id: string, updates: any) => voi
   };
 
   const performAction = async (actionText: string, mode: 'action' | 'investigation' | 'debug') => {
-    if (!gameState) return;
+    // [CRITICAL] Race Condition Protection
+    // Se ainda estiver sincronizando (Analyst rodando), bloqueia nova ação.
+    if (!gameState || isProcessing || isSyncingState) return;
+    
     setIsProcessing(true);
 
     const userEntry: ChatEntry = { role: 'user', text: actionText, type: mode };
@@ -104,8 +129,8 @@ export const useGameEngine = (evolveUniverse?: (id: string, updates: any) => voi
                 newTruths: narrativeRes.discoveredTruths
             });
         }
-        // --------------------------------
 
+        // UPDATE UI WITH TEXT (IMMEDIATE FEEDBACK)
         setGameState(prev => {
           if (!prev) return null;
           return {
@@ -115,8 +140,9 @@ export const useGameEngine = (evolveUniverse?: (id: string, updates: any) => voi
           };
         });
 
-        setIsProcessing(false);
-        setIsSyncingState(true);
+        // HANDOFF TO ANALYST (ASYNC LOGIC)
+        setIsProcessing(false); 
+        setIsSyncingState(true); // Locks Input for Safety
 
         try {
             const { world, npcs } = await synchronizeState(actionText, narrativeRes.narrative, currentState, narrativeRes);
@@ -147,12 +173,13 @@ export const useGameEngine = (evolveUniverse?: (id: string, updates: any) => voi
                 };
             });
         } finally {
-            setIsSyncingState(false);
+            setIsSyncingState(false); // Unlocks Input
         }
       }
     } catch (error) {
       console.error(error);
       setIsProcessing(false);
+      setIsSyncingState(false);
     }
   };
 

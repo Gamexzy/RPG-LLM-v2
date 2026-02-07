@@ -75,18 +75,6 @@ export const NarrativeSchema: Schema = {
         items: { type: Type.STRING },
         description: "New rules of physics, magic, or deep lore discovered in this turn (e.g., 'Gold blocks magic')."
     },
-    graphUpdates: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          source: { type: Type.STRING }, // Updated
-          relation: { type: Type.STRING },
-          target: { type: Type.STRING }  // Updated
-        },
-        required: ["source", "relation", "target"]
-      }
-    },
     knowledgeUpdate: {
       type: Type.OBJECT,
       properties: {
@@ -99,13 +87,61 @@ export const NarrativeSchema: Schema = {
   required: ["narrative"]
 };
 
+export const GraphSchema: Schema = {
+    type: Type.OBJECT,
+    properties: {
+        edges: {
+            type: Type.ARRAY,
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    source: { type: Type.STRING },
+                    relation: { type: Type.STRING },
+                    target: { type: Type.STRING }
+                },
+                required: ["source", "relation", "target"]
+            }
+        }
+    },
+    required: ["edges"]
+};
+
+// [NEW] Unified Analyst Schema (The "Overseer")
+export const AnalystSchema: Schema = {
+    type: Type.OBJECT,
+    properties: {
+        // 1. SQLite (Game State)
+        worldUpdate: WorldEngineSchema,
+        
+        // 2. Neo4j (Graph Relations)
+        graphEdges: GraphSchema.properties?.edges,
+
+        // 3. ChromaDB (Vector Context)
+        memoryMetadata: {
+            type: Type.OBJECT,
+            properties: {
+                keywords: { type: Type.ARRAY, items: { type: Type.STRING } },
+                summary: { type: Type.STRING, description: "One sentence summary of what happened for indexing." },
+                importance: { 
+                    type: Type.STRING, 
+                    enum: ["low", "medium", "high", "critical"],
+                    description: "How important is this event for long-term memory?" 
+                }
+            },
+            required: ["keywords", "summary", "importance"]
+        }
+    },
+    required: ["worldUpdate", "graphEdges", "memoryMetadata"]
+};
+
 export const InitSchema: Schema = {
     type: Type.OBJECT,
     properties: {
         initialTime: { type: Type.STRING },
         narrative: NarrativeSchema.properties?.narrative,
         worldUpdate: WorldEngineSchema,
-        npcSimulation: NPCBehaviorSchema.properties?.npcs
+        npcSimulation: NPCBehaviorSchema.properties?.npcs,
+        graphUpdates: GraphSchema.properties?.edges 
     },
     required: ["initialTime", "narrative", "worldUpdate", "npcSimulation"]
 };

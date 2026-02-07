@@ -77,7 +77,8 @@ export const syncUniverse = async (userId: string, universe: UniverseTemplate) =
   try {
     const data = sanitizeUniverse({ ...universe, userId });
     
-    // [NOVO] Graph Context: Cria o nó do Universo imediatamente no Neo4j
+    // [FIX] Graph Context: Usa 'source' e 'target' pois o backend helper (process_graph_context)
+    // faz o mapeamento interno de source->subject e target->object.
     const payload = {
         ...data,
         graphContext: [
@@ -95,19 +96,17 @@ export const syncCharacter = async (userId: string, character: CharacterTemplate
   try {
     const data = sanitizeCharacter({ ...character, userId });
     
-    // [NOVO] Graph Context: Garante que o nó do Personagem exista antes do jogo começar
-    // Isso resolve o problema de "personagem não gerado no servidor de grafos"
+    // [FIX] Graph Context: Usa 'source' e 'target' compatível com library.py
     const payload = {
         ...data,
         graphContext: [
             { source: character.name, relation: "IS_A", target: character.archetype },
             { source: character.name, relation: "TYPE_OF", target: "Character" }
-            // O Backend deve ligar User -> CREATED -> Character baseado no userId do payload
         ]
     };
     await apiClient.post('/library/character', payload);
-  } catch (e) { 
-    console.warn("Sync Character failed", e); 
+  } catch (e: any) { 
+    console.error(`Sync Character failed [${character.name}]:`, e.message || e); 
   }
 };
 
@@ -115,14 +114,13 @@ export const syncAdventureMetadata = async (userId: string, adventure: Adventure
   try {
     const data = sanitizeAdventure({ ...adventure, userId });
 
-    // [NOVO] Graph Context: Resolve o erro de log "relationship type PLAYS does not exist"
+    // [FIX] Limpeza de Arestas:
+    // Não enviamos mais graphContext aqui. O Backend (library.py/save_adventure) já cria
+    // as arestas estruturais (PLAYS, HAPPENS_IN, USES_TEMPLATE) usando IDs reais via Cypher.
+    // Enviar 'graphContext' com nomes (strings) criava nós duplicados e poluição visual no grafo.
     const payload = {
         ...data,
-        graphContext: [
-             { source: userId, relation: "PLAYS", target: adventure.id }, // O Backend deve tratar 'userId' como lookup do nó User
-             { source: adventure.id, relation: "OCCURS_IN", target: adventure.universeName },
-             { source: adventure.id, relation: "STARRING", target: adventure.characterName }
-        ]
+        graphContext: [] 
     };
     await apiClient.post('/library/adventure', payload);
   } catch (e) { 

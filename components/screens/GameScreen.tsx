@@ -7,6 +7,7 @@ import { GameState } from '../../types';
 interface GameScreenProps {
   gameState: GameState | null;
   isProcessing: boolean;
+  isSyncingState: boolean; // [NEW]
   isInvestigationMode: boolean;
   onPerformAction: (text: string, mode: 'action' | 'investigation' | 'debug') => void;
   onToggleMode: () => void;
@@ -14,7 +15,8 @@ interface GameScreenProps {
 
 const GameScreen: React.FC<GameScreenProps> = ({ 
   gameState, 
-  isProcessing, 
+  isProcessing,
+  isSyncingState, 
   isInvestigationMode, 
   onPerformAction, 
   onToggleMode 
@@ -29,6 +31,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
       <InputArea 
         onSend={onPerformAction}
         isProcessing={isProcessing}
+        isSyncingState={isSyncingState}
         isInvestigationMode={isInvestigationMode}
         onToggleMode={onToggleMode}
       />

@@ -1,5 +1,5 @@
 
-const DEFAULT_URL = "http://localhost:8000";
+const DEFAULT_URL = "https://e133-2804-8e44-f03-9f00-25a3-1495-1c2a-3623.ngrok-free.app";
 const STORAGE_KEY = "cronos_api_url";
 
 // --- Gerenciamento de URL ---

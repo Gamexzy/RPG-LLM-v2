@@ -8,6 +8,65 @@ interface GameLogProps {
   isInvestigationMode: boolean;
 }
 
+// --- RICH TEXT PARSER ---
+// Transforma tags [[TYPE: Value]] em componentes React estilizados
+const RichTextRenderer: React.FC<{ text: string }> = ({ text }) => {
+    // Regex para capturar tags: [[TYPE: Content]]
+    // Grupos: 1=TYPE, 2=Content
+    const parts = text.split(/\[\[(LOC|ITEM|NPC|LORE):(.+?)\]\]/g);
+
+    if (parts.length === 1) return <span>{text}</span>;
+
+    const elements: React.ReactNode[] = [];
+    
+    // O split com regex e grupos de captura funciona assim:
+    // [texto_antes, TIPO_TAG, CONTEUDO_TAG, texto_depois, TIPO_TAG_2, CONTEUDO_TAG_2...]
+    for (let i = 0; i < parts.length; i += 3) {
+        // Texto normal antes da tag
+        elements.push(<span key={`txt-${i}`}>{parts[i]}</span>);
+
+        // Se houver tag capturada
+        if (i + 2 < parts.length) {
+            const type = parts[i + 1];
+            const content = parts[i + 2].trim();
+            
+            let className = "";
+            let icon = "";
+
+            switch (type) {
+                case 'LOC':
+                    className = "text-emerald-400 font-bold hover:underline cursor-help decoration-emerald-800 underline-offset-4";
+                    icon = "📍 ";
+                    break;
+                case 'ITEM':
+                    className = "text-amber-400 font-bold hover:underline cursor-help decoration-amber-800 underline-offset-4";
+                    icon = "📦 ";
+                    break;
+                case 'NPC':
+                    className = "text-purple-400 font-bold hover:underline cursor-help decoration-purple-800 underline-offset-4";
+                    icon = "👤 ";
+                    break;
+                case 'LORE':
+                    className = "text-blue-400 font-bold hover:underline cursor-help decoration-blue-800 underline-offset-4";
+                    icon = "📜 ";
+                    break;
+                default:
+                    className = "text-stone-300 font-bold";
+            }
+
+            elements.push(
+                <span key={`tag-${i}`} className={className} title={type}>
+                   {/* Opcional: Remover ícone se preferir só texto colorido */}
+                   {content}
+                </span>
+            );
+        }
+    }
+
+    return <>{elements}</>;
+};
+
+
 const GameLog: React.FC<GameLogProps> = ({ history, isProcessing, isInvestigationMode }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -41,7 +100,11 @@ const GameLog: React.FC<GameLogProps> = ({ history, isProcessing, isInvestigatio
             {entry.role === 'system' && entry.type !== 'debug' ? (
               <span className="text-red-900/80 block border border-red-900/30 p-2 text-xs font-sans uppercase tracking-widest">{entry.text}</span>
             ) : (
-              entry.text.split('\n').map((line, i) => <p key={i} className="mb-4 last:mb-0">{line}</p>)
+              entry.text.split('\n').map((line, i) => (
+                 <p key={i} className="mb-4 last:mb-0">
+                    <RichTextRenderer text={line} />
+                 </p>
+              ))
             )}
 
             {/* Labels */}

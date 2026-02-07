@@ -28,6 +28,14 @@ const StatusTab: React.FC<StatusTabProps> = ({ gameState }) => {
   const visibleNPCs = gameState.world.npcs.filter(npc => npc.location === gameState.player.location);
   const { stats } = gameState.player;
 
+  const getConditionIcon = (condition?: string) => {
+      switch(condition) {
+          case 'DEAD': return '💀';
+          case 'INCAPACITATED': return '💤';
+          default: return '⚡'; // Normal/Active
+      }
+  };
+
   return (
     <>
       {/* Vital Stats */}
@@ -101,10 +109,11 @@ const StatusTab: React.FC<StatusTabProps> = ({ gameState }) => {
         {visibleNPCs.length > 0 ? (
           <ul className="space-y-3">
             {visibleNPCs.map((npc, i) => (
-              <li key={i} className="text-xs bg-stone-900/30 p-2 rounded border border-stone-800/50">
+              <li key={i} className={`text-xs bg-stone-900/30 p-2 rounded border ${npc.condition === 'DEAD' ? 'border-red-900/30 opacity-60' : 'border-stone-800/50'}`}>
                 <div className="flex justify-between mb-1">
-                  <span className={`font-serif ${npc.isNameKnown ? 'text-amber-500' : 'text-stone-500'}`}>
+                  <span className={`font-serif flex items-center gap-1 ${npc.isNameKnown ? 'text-amber-500' : 'text-stone-500'}`}>
                     {npc.isNameKnown ? npc.name : npc.descriptor}
+                    <span title={npc.condition}>{getConditionIcon(npc.condition)}</span>
                   </span>
                   <span className="text-[9px] text-stone-700">{npc.status}</span>
                 </div>

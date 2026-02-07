@@ -18,7 +18,7 @@ export const investigateScene = async (
   ]);
 
   const formattedGraph = graphRelations.length > 0 
-      ? `[GRAFO]: ${graphRelations.map(g => `${g.subject} ${g.relation} ${g.object}`).join(", ")}`
+      ? `[GRAFO]: ${graphRelations.map(g => `${g.source} ${g.relation} ${g.target}`).join(", ")}`
       : "";
 
   const formattedMemories = vectorMemories.length > 0

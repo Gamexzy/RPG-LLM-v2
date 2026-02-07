@@ -6,6 +6,7 @@ import { fetchUserLibrary, syncUniverse, syncCharacter, syncAdventureMetadata } 
 const DEFAULT_UNIVERSES: UniverseTemplate[] = [
   {
     id: 'uni-veridia',
+    userId: 'system',
     name: 'Cosmos de Veridia',
     description: 'Um universo onde a entropia parou. As estrelas não morrem, mas a vida orgânica apodrece rapidamente.',
     genre: 'Cyberpunk Nihilista',
@@ -24,6 +25,7 @@ const DEFAULT_UNIVERSES: UniverseTemplate[] = [
   },
   {
     id: 'uni-eldoria',
+    userId: 'system',
     name: 'Planos de Eldoria',
     description: 'Um multiverso de ilhas flutuando no Vazio.',
     genre: 'High Fantasy',
@@ -45,6 +47,7 @@ const DEFAULT_UNIVERSES: UniverseTemplate[] = [
 const DEFAULT_CHARACTERS: CharacterTemplate[] = [
   {
     id: 'char-kael',
+    userId: 'system',
     name: 'Kael',
     description: 'Um ator focado em papéis de sobrevivência.',
     archetype: 'O Sobrevivente',
@@ -141,11 +144,11 @@ export const useLibrary = (userId?: string) => {
   };
 
   // Actions
-  const addUniverse = (template: Omit<UniverseTemplate, 'id' | 'createdAt'>) => {
-    const newUni: UniverseTemplate = { ...template, id: crypto.randomUUID(), createdAt: Date.now() };
+  const addUniverse = (template: Omit<UniverseTemplate, 'id' | 'createdAt' | 'userId'>) => {
+    if (!userId) return;
+    const newUni: UniverseTemplate = { ...template, id: crypto.randomUUID(), userId, createdAt: Date.now() };
     saveU([...universes, newUni]);
-    // Sync to Backend
-    if (userId) syncUniverse(userId, newUni);
+    syncUniverse(userId, newUni);
   };
 
   const evolveUniverse = (universeId: string, updates: any) => {
@@ -181,27 +184,35 @@ export const useLibrary = (userId?: string) => {
   };
   
   const addAdventureRecord = (u: UniverseTemplate, c: CharacterTemplate) => {
+      if (!userId) return;
       const newRecord: AdventureRecord = {
           id: crypto.randomUUID(),
+          userId,
+          universeId: u.id,
+          characterId: c.id,
+          name: `${c.name} em ${u.name}`,
+          
+          // Legacy fields mapping
           characterName: c.name,
           universeName: u.name,
           universeGenre: u.genre,
           startDate: Date.now(),
-          lastLocation: 'Início'
+          lastLocation: 'Início',
+          createdAt: Date.now()
       };
       saveA([newRecord, ...adventures]);
       // Sync metadata
-      if (userId) syncAdventureMetadata(userId, newRecord);
+      syncAdventureMetadata(userId, newRecord);
   };
 
   const deleteAdventureRecord = (id: string) => saveA(adventures.filter(a => a.id !== id));
   const deleteUniverse = (id: string) => saveU(universes.filter(u => u.id !== id));
   
-  const addCharacter = (template: Omit<CharacterTemplate, 'id' | 'createdAt'>) => {
-    const newChar: CharacterTemplate = { ...template, id: crypto.randomUUID(), createdAt: Date.now() };
+  const addCharacter = (template: Omit<CharacterTemplate, 'id' | 'createdAt' | 'userId'>) => {
+    if (!userId) return;
+    const newChar: CharacterTemplate = { ...template, id: crypto.randomUUID(), userId, createdAt: Date.now() };
     saveC([...characters, newChar]);
-    // Sync to Backend
-    if (userId) syncCharacter(userId, newChar);
+    syncCharacter(userId, newChar);
   };
   const deleteCharacter = (id: string) => saveC(characters.filter(c => c.id !== id));
 

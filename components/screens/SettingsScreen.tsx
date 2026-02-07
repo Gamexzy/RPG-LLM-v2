@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 
 interface SettingsScreenProps {
   backendStatus: 'checking' | 'online' | 'offline';
@@ -10,6 +10,18 @@ interface SettingsScreenProps {
 }
 
 const SettingsScreen: React.FC<SettingsScreenProps> = ({ backendStatus, onRestoreDefaults, onFactoryReset, userId, onLogout }) => {
+  const [confirmLogout, setConfirmLogout] = useState(false);
+
+  const handleLogoutClick = () => {
+    if (confirmLogout) {
+        onLogout();
+    } else {
+        setConfirmLogout(true);
+        // Reseta o estado de confirmação após 3 segundos se o usuário não confirmar
+        setTimeout(() => setConfirmLogout(false), 3000);
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col p-6 animate-fade-in pb-24 overflow-y-auto">
        <div className="flex flex-col md:flex-row gap-8 md:gap-16 max-w-6xl w-full mx-auto h-full">
@@ -30,10 +42,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ backendStatus, onRestor
              <div className="mt-8 md:mt-0">
                 <button 
                     type="button" 
-                    onClick={onLogout} 
-                    className="text-stone-400 hover:text-white hover:bg-red-900/20 hover:border-red-900/50 border border-stone-800 text-xs text-center p-4 w-full transition-all duration-200 uppercase tracking-widest"
+                    onClick={handleLogoutClick} 
+                    className={`border text-xs text-center p-4 w-full transition-all duration-300 uppercase tracking-widest ${
+                        confirmLogout 
+                        ? 'bg-red-900/20 border-red-500 text-red-500 hover:bg-red-900/40 font-bold' 
+                        : 'border-stone-800 text-stone-400 hover:text-white hover:bg-red-900/10 hover:border-red-900/30'
+                    }`}
                 >
-                    Encerrar Sessão Neural
+                    {confirmLogout ? 'Confirmar Desconexão?' : 'Encerrar Sessão Neural'}
                 </button>
              </div>
          </div>

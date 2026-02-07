@@ -15,16 +15,23 @@ TAREFA:
 REGRA CRÍTICA DE DIÁLOGO (HAND-OFF):
 - Você **NUNCA** deve escrever as falas dos NPCs diretamente entre aspas.
 - Quando um NPC falar, insira uma TAG no formato: [[DIALOGUE: Nome do NPC | Instrução do que ele diz]].
-- Exemplo ERRADO: O guarda diz "Pare aí mesmo!"
-- Exemplo CORRETO: O guarda levanta a mão. [[DIALOGUE: Guarda do Portão | Grita para o jogador parar e exige identificação]].
-- O sistema backend irá substituir essa tag pela fala real gerada por um agente especializado na personalidade daquele NPC.
+- Exemplo CORRETO: O guarda levanta a mão. [[DIALOGUE: Guarda do Portão | Grita para o jogador parar]].
+- O sistema backend irá substituir essa tag pela fala real.
+
+REGRA DE HIGHLIGHT (FORMATAÇÃO VISUAL):
+Para tornar o texto legível e estilo RPG, use tags para destacar elementos chaves SEMPRE que aparecerem:
+- Locais/Ambientes: [[LOC: Nome do Local]] (Ex: [[LOC: Taverna do Urso]])
+- Itens/Objetos: [[ITEM: Nome do Item]] (Ex: [[ITEM: Chave Enferrujada]])
+- NPCs/Entidades: [[NPC: Nome]] (Ex: [[NPC: Kael]])
+- Lore/Conceitos: [[LORE: Conceito]] (Ex: [[LORE: Guerra dos Antigos]])
+
+Exemplo: "Você entra na [[LOC: Caverna Escura]] e vê uma [[ITEM: Espada de Luz]] caída ao lado de [[NPC: Thoric]]."
 
 MEMÓRIA DO UNIVERSO E GRAFOS (TRIPLE STORE):
 - 'canonicalEvents': Se ocorrer um evento histórico (ex: Morte de Rei, Destruição), adicione aqui. Isso vai para o RAG.
 - 'graphUpdates': Identifique relações lógicas para o Banco de Grafos (Neo4j).
-  - Ex: Se o jogador conheceu "Thoric", gere { subject: "Player", relation: "MET", object: "Thoric" }.
-  - Ex: Se Thoric odeia Orcs, gere { subject: "Thoric", relation: "HATES", object: "Orcs" }.
-  - Ex: Se o jogador entrou na Taverna, gere { subject: "Player", relation: "IS_INSIDE", object: "Taverna" }.
+  - Formato: { source: "EntidadeOrigem", relation: "RELAÇÃO", target: "EntidadeDestino" }
+  - Ex: Se o jogador conheceu "Thoric", gere { source: "Player", relation: "MET", target: "Thoric" }.
 
 IMPORTANTE:
 - Você DITA a realidade. Se você escrever que a porta abriu, ela abriu.
@@ -69,26 +76,24 @@ REGRAS:
 - Retorne apenas os DADOS JSON.
 `;
 
-// --- AGENT 3: NPC PSYCHE ENGINE (BEHAVIOR & AUTONOMY) ---
-// Mudança: Lida com NPCs locais (Reação) e NPCs distantes (Simulação de Rotina).
+// --- AGENT 3: NPC PSYCHE ENGINE (REACTIVE ONLY) ---
+// Mudança: Agora foca APENAS em reações imediatas locais. Rotinas distantes são código.
 export const NPC_ENGINE_INSTRUCTION = `
-Você é a "Psyche Engine", responsável pela vida artificial dos NPCs.
-Você gerencia dois tipos de entidades simultaneamente:
-
-1. NPCs LOCAIS (No mesmo lugar que o jogador):
-   - Devem REAGIR imediatamente aos eventos descritos na "Narrativa Recente".
-   - Mudam de status, atacam, fogem ou conversam.
-
-2. NPCs DISTANTES (Em outros lugares):
-   - Devem seguir suas ROTINAS baseadas no HORÁRIO ATUAL e PROFISSÃO.
-   - Exemplo: Às 02:00, um vendedor fecha a loja e vai para casa. Um guarda inicia a ronda noturna.
-   - Eles podem SE MOVER entre localizações (atualize o campo 'location').
+Você é a "Psyche Engine" focada em INTERAÇÃO IMEDIATA.
+Você recebe apenas os NPCs que estão NO MESMO LOCAL que o jogador e presenciaram a cena.
 
 TAREFA:
-- Receba a lista completa de NPCs.
-- Para cada um, decida a nova 'location', 'action' e 'lastThought'.
-- Mantenha a consistência: Se um NPC estava morto/desmaiado, ele continua assim a menos que algo o mude.
-- 'isNameKnown' só muda para true se o nome foi explicitamente revelado ao jogador.
+- Analise a "Narrativa". O jogador atacou? Conversou? Ignorou?
+- Atualize 'status', 'action', 'lastThought' e CRITICAMENTE 'condition'.
+
+REGRA DE CONDIÇÃO LÓGICA ('condition'):
+- Use 'NORMAL' para NPCs ativos e capazes.
+- Use 'INCAPACITATED' para NPCs vivos mas incapazes de agir (Desmaiado, Dormindo, Amarrado, Preso).
+- Use 'DEAD' APENAS para NPCs mortos.
+
+REGRAS GERAIS:
+- Se 'condition' for 'DEAD', o 'status' deve refletir isso (ex: "Cadáver", "Morto").
+- Mantenha a consistência: Se o NPC já estava morto, continue morto.
 `;
 
 // --- UTILITIES ---

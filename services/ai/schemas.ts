@@ -47,9 +47,14 @@ export const NPCBehaviorSchema: Schema = {
           location: { type: Type.STRING },
           action: { type: Type.STRING },
           lastThought: { type: Type.STRING },
-          status: { type: Type.STRING }
+          status: { type: Type.STRING, description: "Flavor text (e.g. 'Bleeding out', 'Angry')" },
+          condition: { 
+              type: Type.STRING, 
+              enum: ["NORMAL", "INCAPACITATED", "DEAD"],
+              description: "Logical state. DEAD = Permadeath. INCAPACITATED = Cannot act (Sleep/Unconscious/Jailed). NORMAL = Active."
+          }
         },
-        required: ["id", "name", "descriptor", "isNameKnown", "location", "action", "lastThought", "status"]
+        required: ["id", "name", "descriptor", "isNameKnown", "location", "action", "lastThought", "status", "condition"]
       }
     }
   },
@@ -75,11 +80,11 @@ export const NarrativeSchema: Schema = {
       items: {
         type: Type.OBJECT,
         properties: {
-          subject: { type: Type.STRING },
+          source: { type: Type.STRING }, // Updated
           relation: { type: Type.STRING },
-          object: { type: Type.STRING }
+          target: { type: Type.STRING }  // Updated
         },
-        required: ["subject", "relation", "object"]
+        required: ["source", "relation", "target"]
       }
     },
     knowledgeUpdate: {

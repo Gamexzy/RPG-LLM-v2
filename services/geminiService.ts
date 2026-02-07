@@ -1,5 +1,5 @@
 
-import { GameState, SimulationResponse, NarrativeResponse, WorldUpdate, NPCBehaviorResponse, CharacterTemplate } from "../types";
+import { GameState, SimulationResponse, NarrativeResponse, WorldUpdate, NPCBehaviorResponse, CharacterTemplate, GraphEdge } from "../types";
 import { synthesizeNarrative, initializeGameSession } from "./agents/narrator";
 import { runNPCBehaviorEngine } from "./agents/npc";
 import { runWorldSimulation } from "./agents/world";
@@ -137,6 +137,30 @@ export const initializeGame = async (character: CharacterTemplate, setting: stri
 
   const finalNarrativeText = await resolveDialogueTags(rawResponse.narrative, mockState);
 
+  // --- CRITICAL: FORCE INITIAL GRAPH POPULATION ---
+  // A IA pode esquecer de gerar arestas para o próprio jogador na intro.
+  // Injetamos manualmente para garantir que o nó do Player seja criado no Neo4j.
+  const forcedGraphUpdates: GraphEdge[] = [
+    {
+        source: character.name,
+        relation: "IS_A",
+        target: character.archetype
+    },
+    {
+        source: character.name,
+        relation: "LOCATED_AT",
+        target: rawResponse.worldUpdate.newLocation || "Start"
+    },
+    {
+        source: character.name,
+        relation: "EXISTS_IN",
+        target: universeName
+    }
+  ];
+
+  // Merge with AI generated updates
+  const initialGraphData = [...forcedGraphUpdates, ...(rawResponse.graphUpdates || [])];
+
   // Ingest initial LORE if generated
   const payload: UnifiedIngestPayload = {
       userId: userId,
@@ -153,7 +177,7 @@ export const initializeGame = async (character: CharacterTemplate, setting: stri
           inventory: [],
           worldState: {}
       },
-      graphData: rawResponse.graphUpdates || []
+      graphData: initialGraphData
   };
   ingestUnifiedMemory(payload);
 

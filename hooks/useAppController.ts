@@ -59,13 +59,16 @@ export const useAppController = () => {
   };
 
   const handleLogout = () => {
-      if (window.confirm('Deseja realmente desconectar?')) {
-          localStorage.removeItem('cronos_session_user');
-          // Ordem importante: Primeiro reseta o jogo, depois a view, depois o user
-          resetGame();
-          setCurrentView('ADVENTURE_LAUNCHER');
-          setUserId(null);
-      }
+      // Removemos o window.confirm daqui para tratar na UI (UX melhor)
+      localStorage.removeItem('cronos_session_user');
+      
+      // Reset total do estado do jogo
+      resetGame();
+      setIsSidebarOpen(false);
+      
+      // Mudança de view e usuário
+      setCurrentView('ADVENTURE_LAUNCHER');
+      setUserId(null);
   };
 
   // --- Handlers ---

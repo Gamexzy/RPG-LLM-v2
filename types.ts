@@ -1,11 +1,95 @@
 
+// [2025-08-02] Tipos atualizados para refletir a separação entre Template e Instância
+
+// --- Core Entities (Library) ---
+
+export interface UniverseTemplate {
+  id: string;
+  userId: string;
+  name: string;
+  description: string;
+  genre: string;
+  image?: string;
+  createdAt?: string | number;
+
+  // Extended properties for GenAI Engine & Game Logic
+  structure?: UniverseStructure;
+  navigationMethod?: NavigationMethod;
+  physics?: string[];
+  magicSystem?: string;
+  cosmology?: string;
+  knownTruths?: string[];
+  chronicles?: TimelineEvent[];
+  champions?: ChampionRecord[];
+  worlds?: WorldEntry[];
+}
+
+export interface CharacterTemplate {
+  id: string;
+  userId: string;
+  name: string;
+  description: string;
+  archetype: string;
+  image?: string;
+  stats?: Record<string, any>; // Flexible stats object
+  createdAt?: string | number;
+  
+  // Extended
+  adventuresPlayed?: number;
+}
+
+export interface AdventureRecord {
+  id: string;
+  userId: string;
+  universeId: string; // O Palco
+  characterId: string; // O Ator
+  name: string; // Display Name for the Save
+  description?: string;
+  currentStep?: string;
+  createdAt?: string | number;
+
+  // Legacy/Computed fields for UI display without joining
+  characterName?: string;
+  universeName?: string;
+  universeGenre?: string;
+  startDate?: number;
+  lastLocation?: string;
+}
+
+export interface UserLibrary {
+  universes: UniverseTemplate[];
+  characters: CharacterTemplate[];
+  adventures: AdventureRecord[];
+}
+
+export interface GraphEdge {
+  source: string;   // Renamed from 'subject'
+  target: string;   // Renamed from 'object'
+  relation: string;
+  properties?: Record<string, any>;
+}
+
+export interface Message {
+  role: 'user' | 'assistant' | 'system' | 'model'; 
+  content?: string; // Standard content field
+  text: string;     // Compatibility alias (Primary used in UI currently)
+  timestamp?: string;
+  type?: 'text' | 'action' | 'thought' | 'narration' | 'investigation' | 'debug';
+  
+  // Game specific data
+  simulationData?: SimulationResponse; 
+}
+
+// Alias for backwards compatibility
+export type ChatEntry = Message;
+
 // --- Game State Types (The "Adventure State" - Volatile) ---
 
 export interface KnowledgeEntry {
-  id: string; // Name or unique identifier
+  id: string;
   type: 'character' | 'location' | 'lore';
   description: string;
-  status?: string; // e.g., "Ally", "Enemy", "Visited", "Unknown"
+  status?: string;
 }
 
 export interface QuestEntry {
@@ -15,6 +99,8 @@ export interface QuestEntry {
   status: 'active' | 'completed' | 'failed';
 }
 
+export type NPCCondition = 'NORMAL' | 'INCAPACITATED' | 'DEAD';
+
 export interface NPCEntity {
   id: string; 
   name: string; 
@@ -23,14 +109,8 @@ export interface NPCEntity {
   location: string;
   action: string; 
   lastThought: string; 
-  status: string; 
-}
-
-export interface GraphEdge {
-  subject: string;
-  relation: string;
-  object: string;
-  properties?: Record<string, any>;
+  status: string; // Descritivo (Flavor) ex: "Sangrando"
+  condition: NPCCondition; // Lógico (Engine) ex: "NORMAL"
 }
 
 export interface PlayerStats {
@@ -43,13 +123,13 @@ export interface PlayerStats {
 }
 
 export interface GameState {
-  universeId: string; // Link to the "Stage"
-  userId?: string;    // Link to the "User/Owner"
+  universeId: string;
+  userId?: string;
 
   player: {
-    sourceId: string; // Link to the "Soul/Identity" (CharacterTemplate ID)
-    name: string;     // Can change in-game (alias), but defaults to Template name
-    description: string; // Current physical state description
+    sourceId: string;
+    name: string;
+    description: string;
     inventory: string[];
     status: string;
     location: string;
@@ -68,17 +148,10 @@ export interface GameState {
     quests: QuestEntry[];
   };
   summary: string; 
-  history: ChatEntry[];
+  history: Message[];
 }
 
-export interface ChatEntry {
-  role: 'user' | 'model' | 'system';
-  text: string;
-  simulationData?: SimulationResponse; 
-  type?: 'action' | 'investigation' | 'debug';
-}
-
-// --- Library Templates (The "Identity" & "Cosmos" - Permanent) ---
+// --- Library Components ---
 
 export interface TimelineEvent {
   year: string;
@@ -89,7 +162,7 @@ export interface TimelineEvent {
 export interface ChampionRecord {
   characterName: string;
   feat: string;
-  date: string; // Real world date or Game date
+  date: string;
   status: 'Legend' | 'Myth' | 'Forgotten';
 }
 
@@ -98,50 +171,8 @@ export interface WorldEntry {
     description: string;
 }
 
-export interface AdventureRecord {
-  id: string;
-  characterName: string;
-  universeName: string;
-  universeGenre: string;
-  startDate: number;
-  lastLocation?: string; // Optional metadata
-}
-
 export type UniverseStructure = 'singular_world' | 'star_cluster' | 'multiverse_hub';
 export type NavigationMethod = 'physical' | 'interstellar_ship' | 'magical_gate' | 'dream_walking';
-
-export interface UniverseTemplate {
-  id: string;
-  name: string; // Ex: "Dimensão C-137" ou "O Multiverso de Aether"
-  description: string; // Descrição geral do "Vibe"
-  genre: string;
-  createdAt: number;
-  
-  // V2: Deep Universe Properties
-  structure: UniverseStructure; // NOVO: Define se é Planeta Infinito ou Galáxia
-  navigationMethod: NavigationMethod; // NOVO: Define como se viaja entre os "Wolds"
-  physics: string[]; // Leis fundamentais (Hard Rules)
-  magicSystem: string; 
-  cosmology: string; // Estrutura do universo (Ex: "9 Reinos", "Galáxia Espiral", "Terra Plana Infinita")
-  
-  // V3: Living Database
-  knownTruths: string[]; 
-  chronicles: TimelineEvent[]; // História do Universo (não de um planeta só)
-  champions: ChampionRecord[]; 
-  worlds: WorldEntry[]; // Lista de Planetas/Reinos descobertos onde as tramas ocorrem
-}
-
-export interface CharacterTemplate {
-  // Identity (The Actor)
-  id: string;
-  name: string;
-  description: string; // The "essence" or core personality
-  archetype: string;   // The preferred "role" they play
-
-  // Meta-Progression
-  adventuresPlayed?: number; // Tracks usage across all stages
-  createdAt: number;
-}
 
 // --- AI Response Types ---
 

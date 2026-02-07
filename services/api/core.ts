@@ -45,31 +45,48 @@ const handleApiError = async (response: Response) => {
   try {
       const json = JSON.parse(text);
       if (json.detail) {
-           throw new ApiError(json.detail, response.status);
+           // FastAPI Validation Error (Array or String)
+           // Extrai detalhes úteis do 422 (ex: qual campo está faltando)
+           const msg = Array.isArray(json.detail) 
+             ? json.detail.map((e: any) => `${e.loc?.join('.') || 'Campo'}: ${e.msg}`).join('\n')
+             : json.detail;
+           throw new ApiError(msg, response.status);
       }
   } catch (e) {
-      // Falha ao parsear JSON
+      if (e instanceof ApiError) throw e;
+      // Falha ao parsear JSON, continua para erro genérico
   }
   throw new ApiError(text || `Erro ${response.status}: ${response.statusText}`, response.status);
 };
 
+const handleNetworkError = (error: any, url: string) => {
+    if (error.message && error.message.includes('Failed to fetch')) {
+        // Enriched error message
+        throw new Error(`Falha na conexão com ${url}. O servidor está offline ou a URL está incorreta.`);
+    }
+    throw error;
+};
+
 export const apiClient = {
   get: async <T>(endpoint: string): Promise<T> => {
+    const url = `${getServerUrl()}${endpoint}`;
     try {
-      const response = await fetch(`${getServerUrl()}${endpoint}`, {
+      const response = await fetch(url, {
         method: 'GET',
         headers: getHeaders()
       });
       if (!response.ok) await handleApiError(response);
       return await response.json() as T;
     } catch (error: any) {
-      throw error;
+      handleNetworkError(error, url);
+      throw error; // Fallback
     }
   },
 
   post: async <T>(endpoint: string, body: any): Promise<T> => {
+    const url = `${getServerUrl()}${endpoint}`;
     try {
-      const response = await fetch(`${getServerUrl()}${endpoint}`, {
+      const response = await fetch(url, {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify(body)
@@ -79,7 +96,8 @@ export const apiClient = {
       if (response.status === 204) return {} as T;
       return await response.json() as T;
     } catch (error: any) {
-      throw error;
+      handleNetworkError(error, url);
+      throw error; // Fallback
     }
   },
 

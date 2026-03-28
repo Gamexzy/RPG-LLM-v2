@@ -1,5 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { AISettings } from '../../types';
+import { getServerUrl, setServerUrl } from '../../services/api/core';
 
 interface SettingsScreenProps {
   backendStatus: 'checking' | 'online' | 'offline';
@@ -7,11 +9,39 @@ interface SettingsScreenProps {
   onFactoryReset: () => void;
   userId?: string;
   onLogout: () => void;
+  aiSettings: AISettings;
+  onUpdateAiSettings: (settings: AISettings) => void;
 }
 
-const SettingsScreen: React.FC<SettingsScreenProps> = ({ backendStatus, onRestoreDefaults, onFactoryReset, userId, onLogout }) => {
+const SettingsScreen: React.FC<SettingsScreenProps> = ({ 
+  backendStatus, 
+  onRestoreDefaults, 
+  onFactoryReset, 
+  userId, 
+  onLogout,
+  aiSettings,
+  onUpdateAiSettings
+}) => {
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [backendUrl, setBackendUrl] = useState('');
+
+  useEffect(() => {
+    setBackendUrl(getServerUrl());
+  }, []);
+
+  const handleBackendUrlChange = (url: string) => {
+    setBackendUrl(url);
+    setServerUrl(url);
+  };
+
+  const handleProviderChange = (provider: 'gemini' | 'lmstudio') => {
+    onUpdateAiSettings({ ...aiSettings, provider });
+  };
+
+  const handleSettingChange = (field: keyof AISettings, value: string) => {
+    onUpdateAiSettings({ ...aiSettings, [field]: value });
+  };
 
   const handleLogoutClick = () => {
     if (confirmLogout) {
@@ -79,6 +109,64 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ backendStatus, onRestor
                     </div>
                 </div>
 
+                {/* PROVEDOR DE IA */}
+                <div className="bg-stone-900/20 p-6 border border-stone-800 rounded-sm space-y-4">
+                    <h3 className="text-stone-500 text-[10px] uppercase tracking-widest border-b border-stone-800 pb-2 mb-4">Provedor de Inteligência</h3>
+                    
+                    <div className="flex gap-2">
+                        <button 
+                            onClick={() => handleProviderChange('gemini')}
+                            className={`flex-1 p-2 text-[10px] uppercase tracking-widest border transition-all ${aiSettings.provider === 'gemini' ? 'bg-amber-900/20 border-amber-500 text-amber-500' : 'border-stone-800 text-stone-600 hover:border-stone-700'}`}
+                        >
+                            Google Gemini
+                        </button>
+                        <button 
+                            onClick={() => handleProviderChange('lmstudio')}
+                            className={`flex-1 p-2 text-[10px] uppercase tracking-widest border transition-all ${aiSettings.provider === 'lmstudio' ? 'bg-amber-900/20 border-amber-500 text-amber-500' : 'border-stone-800 text-stone-600 hover:border-stone-700'}`}
+                        >
+                            LM Studio / Local
+                        </button>
+                    </div>
+
+                    {aiSettings.provider === 'lmstudio' && (
+                        <div className="space-y-3 animate-fade-in">
+                            <div className="flex flex-col gap-1">
+                                <label className="text-[10px] text-stone-500 uppercase tracking-widest">Base URL</label>
+                                <input 
+                                    type="text" 
+                                    value={aiSettings.baseUrl} 
+                                    onChange={(e) => handleSettingChange('baseUrl', e.target.value)}
+                                    placeholder="http://[::1]:1234/v1"
+                                    className="bg-stone-950 border border-stone-800 p-2 text-xs font-mono text-stone-300 focus:outline-none focus:border-amber-900"
+                                />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <label className="text-[10px] text-stone-500 uppercase tracking-widest">Model ID</label>
+                                <input 
+                                    type="text" 
+                                    value={aiSettings.modelId} 
+                                    onChange={(e) => handleSettingChange('modelId', e.target.value)}
+                                    placeholder="local-model"
+                                    className="bg-stone-950 border border-stone-800 p-2 text-xs font-mono text-stone-300 focus:outline-none focus:border-amber-900"
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {aiSettings.provider === 'gemini' && (
+                        <div className="flex flex-col gap-1 animate-fade-in">
+                            <label className="text-[10px] text-stone-500 uppercase tracking-widest">API Key (Opcional se definida no ambiente)</label>
+                            <input 
+                                type="password" 
+                                value={aiSettings.apiKey || ''} 
+                                onChange={(e) => handleSettingChange('apiKey', e.target.value)}
+                                placeholder="••••••••••••••••"
+                                className="bg-stone-950 border border-stone-800 p-2 text-xs font-mono text-stone-300 focus:outline-none focus:border-amber-900"
+                            />
+                        </div>
+                    )}
+                </div>
+
                 {/* REDE */}
                 <div className="bg-stone-900/20 p-6 border border-stone-800 rounded-sm space-y-4">
                     <h3 className="text-stone-500 text-[10px] uppercase tracking-widest border-b border-stone-800 pb-2 mb-4">Topologia de Rede</h3>
@@ -93,15 +181,32 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ backendStatus, onRestor
                     </div>
 
                     {/* Backend RAG */}
-                    <div className="flex items-center justify-between">
-                         <span className="text-stone-400 text-sm">Memória Externa (RAG)</span>
-                         <div className={`flex items-center gap-2 text-[10px] font-mono bg-stone-950/50 px-2 py-1 rounded border border-stone-900 ${
-                            backendStatus === 'online' ? 'text-green-500' : backendStatus === 'checking' ? 'text-amber-500' : 'text-red-500'
-                         }`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${
-                                backendStatus === 'online' ? 'bg-green-500 animate-pulse' : backendStatus === 'checking' ? 'bg-amber-500 animate-bounce' : 'bg-red-500'
-                            }`}></span>
-                            {backendStatus === 'online' ? 'CONECTADO' : backendStatus === 'checking' ? 'NEGOCIANDO...' : 'OFFLINE'}
+                    <div className="flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                            <span className="text-stone-400 text-sm">Memória Externa (RAG)</span>
+                            <div className={`flex items-center gap-2 text-[10px] font-mono bg-stone-950/50 px-2 py-1 rounded border border-stone-900 ${
+                                backendStatus === 'online' ? 'text-green-500' : backendStatus === 'checking' ? 'text-amber-500' : 'text-red-500'
+                            }`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${
+                                    backendStatus === 'online' ? 'bg-green-500 animate-pulse' : backendStatus === 'checking' ? 'bg-amber-500 animate-bounce' : 'bg-red-500'
+                                }`}></span>
+                                {backendStatus === 'online' ? 'CONECTADO' : backendStatus === 'checking' ? 'NEGOCIANDO...' : 'OFFLINE'}
+                            </div>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] text-stone-500 uppercase tracking-widest">URL do Servidor Backend</label>
+                            <input 
+                                type="text" 
+                                value={backendUrl} 
+                                onChange={(e) => handleBackendUrlChange(e.target.value)}
+                                placeholder="http://[::1]:8000"
+                                className="bg-stone-950 border border-stone-800 p-2 text-xs font-mono text-stone-300 focus:outline-none focus:border-amber-900"
+                            />
+                            {window.location.protocol === 'https:' && backendUrl.startsWith('http:') && (
+                                <p className="text-[9px] text-amber-600 italic">
+                                    Aviso: App em HTTPS. O navegador pode bloquear conexões HTTP (Mixed Content).
+                                </p>
+                            )}
                         </div>
                     </div>
 

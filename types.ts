@@ -1,4 +1,22 @@
 
+export type AIProvider = 'gemini' | 'lmstudio';
+
+export interface AISettings {
+  provider: AIProvider;
+  baseUrl: string; // e.g., http://[::1]:1234/v1
+  modelId: string; // e.g., local-model
+  apiKey?: string; // Optional for LM Studio, required for Gemini
+}
+
+declare global {
+  interface Window {
+    aistudio: {
+      hasSelectedApiKey: () => Promise<boolean>;
+      openSelectKey: () => Promise<void>;
+    };
+  }
+}
+
 // [2025-08-02] Tipos atualizados para refletir a separação entre Template e Instância
 
 // --- Core Entities (Library) ---
@@ -215,6 +233,12 @@ export interface SimulationResponse extends NarrativeResponse {
 }
 
 // [NEW] Unified Analyst Response
+export interface SemanticTag {
+    term: string;         // O termo usado no texto (ex: "Lâmina Vorpal")
+    category: string;     // Categoria macro (ex: "Weapon")
+    normalized: string;   // Conceito semântico (ex: "Sword")
+}
+
 export interface AnalystResponse {
     worldUpdate: WorldUpdate;   // SQLite
     graphEdges: GraphEdge[];    // Neo4j
@@ -223,4 +247,5 @@ export interface AnalystResponse {
         summary: string;
         importance: 'low' | 'medium' | 'high' | 'critical';
     };
+    semanticAnalysis?: SemanticTag[]; // [NEW] Para Embedding Backend
 }

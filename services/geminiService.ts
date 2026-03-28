@@ -46,6 +46,7 @@ export const synchronizeState = async (
   const worldRes = analystRes.worldUpdate;
   const graphEdges = analystRes.graphEdges || [];
   const memoryMeta = analystRes.memoryMetadata;
+  const semanticTags = analystRes.semanticAnalysis || []; // [NEW]
 
   // --- TRIPLE STORE INGESTION ---
   if (currentState.userId) {
@@ -72,7 +73,8 @@ export const synchronizeState = async (
               location: worldRes.newLocation,
               keywords: memoryMeta?.keywords,
               summary: memoryMeta?.summary,
-              importance: memoryMeta?.importance
+              importance: memoryMeta?.importance,
+              semanticTags: semanticTags // [NEW] Enviando normalização para o backend
           },
           
           // 2. SQL (Logs)

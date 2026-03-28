@@ -92,6 +92,8 @@ function App() {
          <SettingsScreen 
             userId={state.userId}
             backendStatus={state.backendStatus}
+            aiSettings={state.aiSettings}
+            onUpdateAiSettings={actions.setAiSettings}
             onRestoreDefaults={() => { if(confirm('Restaurar templates?')) { actions.restoreDefaults(); alert('Restaurado!'); window.location.reload(); } }}
             onFactoryReset={actions.handleFactoryReset}
             onLogout={actions.handleLogout}

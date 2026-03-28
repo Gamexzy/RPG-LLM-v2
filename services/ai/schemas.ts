@@ -106,6 +106,20 @@ export const GraphSchema: Schema = {
     required: ["edges"]
 };
 
+// [NEW] Schema para normalização semântica
+export const SemanticAnalysisSchema: Schema = {
+    type: Type.ARRAY,
+    items: {
+        type: Type.OBJECT,
+        properties: {
+            term: { type: Type.STRING, description: "O termo exato usado na narrativa (ex: 'Katana Ancestral')" },
+            category: { type: Type.STRING, description: "Categoria Macro (ex: 'Weapon', 'Location', 'NPC', 'Concept')" },
+            normalized: { type: Type.STRING, description: "Conceito raiz para embedding (ex: se 'Katana', use 'Sword'. Se 'Taverna', use 'Building')." }
+        },
+        required: ["term", "category", "normalized"]
+    }
+};
+
 // [NEW] Unified Analyst Schema (The "Overseer")
 export const AnalystSchema: Schema = {
     type: Type.OBJECT,
@@ -129,7 +143,10 @@ export const AnalystSchema: Schema = {
                 }
             },
             required: ["keywords", "summary", "importance"]
-        }
+        },
+
+        // 4. Semantic Normalization (For Backend Embeddings)
+        semanticAnalysis: SemanticAnalysisSchema
     },
     required: ["worldUpdate", "graphEdges", "memoryMetadata"]
 };

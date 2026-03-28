@@ -1,5 +1,16 @@
 
-const DEFAULT_URL = "https://e133-2804-8e44-f03-9f00-25a3-1495-1c2a-3623.ngrok-free.app";
+const getBaseUrl = () => {
+  if (process.env.BACKEND_URL) return process.env.BACKEND_URL;
+  const protocol = process.env.BACKEND_PROTOCOL || 'http';
+  const ipv6 = process.env.IPV6 || '::1';
+  const port = process.env.BACKEND_PORT || '8000';
+  
+  // Literal IPv6 (contains :) needs brackets, hostname/IPv4 does not
+  const host = ipv6.includes(':') && !ipv6.includes('[') ? `[${ipv6}]` : ipv6;
+  return `${protocol}://${host}:${port}`;
+};
+
+const DEFAULT_URL = getBaseUrl();
 const STORAGE_KEY = "cronos_api_url";
 
 // --- Gerenciamento de URL ---
@@ -61,8 +72,15 @@ const handleApiError = async (response: Response) => {
 
 const handleNetworkError = (error: any, url: string) => {
     if (error.message && error.message.includes('Failed to fetch')) {
-        // Enriched error message
-        throw new Error(`Falha na conexão com ${url}. O servidor está offline ou a URL está incorreta.`);
+        const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+        const isBackendHttp = url.startsWith('http:');
+        
+        let extraMsg = "";
+        if (isHttps && isBackendHttp) {
+            extraMsg = " (Aviso: O navegador pode estar bloqueando a conexão HTTP pois o App está em HTTPS - 'Mixed Content').";
+        }
+
+        throw new Error(`Falha na conexão com ${url}. O servidor está offline, a URL está incorreta ou o acesso foi bloqueado${extraMsg}`);
     }
     throw error;
 };

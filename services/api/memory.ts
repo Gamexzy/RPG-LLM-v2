@@ -1,5 +1,5 @@
 
-import { GraphEdge } from "../../types";
+import { GraphEdge, SemanticTag } from "../../types";
 import { apiClient } from "./core";
 
 // Payload unificado para envio aos 3 bancos de dados
@@ -14,10 +14,12 @@ export interface UnifiedIngestPayload {
     text: string;
     type: 'turn' | 'lore' | 'intro';
     location: string;
-    // [NEW] Metadata otimizado vindo do Analyst Agent
+    // Metadata otimizado vindo do Analyst Agent
     keywords?: string[];
     summary?: string;
     importance?: string;
+    // [NEW] Dados Semânticos para auxiliar o Embedding do Backend
+    semanticTags?: SemanticTag[]; 
   };
 
   // SQLite Logs

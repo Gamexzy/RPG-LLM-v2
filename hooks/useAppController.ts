@@ -5,7 +5,8 @@ import { usePersistence } from './usePersistence';
 import { useLibrary } from './useLibrary';
 import { checkBackendHealth } from '../services/ragService';
 import { NavTab } from '../components/BottomNav';
-import { UniverseTemplate, CharacterTemplate } from '../types';
+import { UniverseTemplate, CharacterTemplate, AISettings } from '../types';
+import { AI_MODELS } from '../services/ai/config';
 
 export type ViewState = 'ADVENTURE_LAUNCHER' | 'ADVENTURE_LIST' | 'UNIVERSE_LIST' | 'UNIVERSE_CREATOR' | 'CHARACTER_LIST' | 'CHARACTER_CREATOR' | 'SETTINGS' | 'GAME';
 
@@ -19,11 +20,48 @@ export const useAppController = () => {
   const [currentView, setCurrentView] = useState<ViewState>('ADVENTURE_LAUNCHER');
   const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'offline'>('checking');
 
+  // AI Settings State
+  const [aiSettings, setAiSettings] = useState<AISettings>(() => {
+    const stored = localStorage.getItem('cronos_ai_settings');
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch (e) {
+        console.error("Error parsing AI settings", e);
+      }
+    }
+    const getLmStudioUrl = () => {
+      if (process.env.LM_STUDIO_BASE_URL) return process.env.LM_STUDIO_BASE_URL;
+      const protocol = process.env.LMSTUDIO_PROTOCOL || 'http';
+      const ipv6 = process.env.IPV6 || '::1';
+      const port = process.env.LMSTUDIO_PORT || '1234';
+      const host = ipv6.includes(':') && !ipv6.includes('[') ? `[${ipv6}]` : ipv6;
+      return `${protocol}://${host}:${port}/v1`;
+    };
+
+    return {
+      provider: 'gemini',
+      baseUrl: getLmStudioUrl(),
+      modelId: AI_MODELS.CREATIVE,
+      apiKey: ''
+    };
+  });
+
+  // Persist AI Settings
+  useEffect(() => {
+    localStorage.setItem('cronos_ai_settings', JSON.stringify(aiSettings));
+  }, [aiSettings]);
+
   // Check for stored session on mount
   useEffect(() => {
     const storedUser = localStorage.getItem('cronos_session_user');
     if (storedUser) setUserId(storedUser);
-  }, []);
+    
+    // Check if we have an API key (either in env or in settings)
+    if (process.env.API_KEY || aiSettings.apiKey || aiSettings.provider === 'lmstudio') {
+      setHasApiKey(true);
+    }
+  }, [aiSettings.apiKey, aiSettings.provider]);
 
   // Library & Persistence (Depende do userId)
   const { 
@@ -199,10 +237,12 @@ export const useAppController = () => {
       isSyncingState, // [NEW] Exposed for UI feedback
       universes,
       characters,
-      adventures
+      adventures,
+      aiSettings
     },
     actions: {
       setHasApiKey,
+      setAiSettings,
       setIsSidebarOpen,
       setIsInvestigationMode,
       setCurrentView,
